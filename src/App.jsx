@@ -1,11 +1,12 @@
+import Index from "@/pages/index.js";
 
 function App() {
 
-  return (
-    <>
-
-    </>
-  )
+    return (
+        <>
+            <Index/>
+        </>
+    )
 }
 
 export default App

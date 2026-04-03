@@ -1,0 +1,116 @@
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+    :root {
+        --background: 225 25% 12%;
+        --foreground: 210 40% 96%;
+
+        --card: 225 20% 16%;
+        --card-foreground: 210 40% 96%;
+
+        --popover: 225 20% 16%;
+        --popover-foreground: 210 40% 96%;
+
+        --primary: 199 89% 48%;
+        --primary-foreground: 225 25% 8%;
+
+        --secondary: 280 60% 55%;
+        --secondary-foreground: 210 40% 98%;
+
+        --muted: 225 15% 22%;
+        --muted-foreground: 215 20% 60%;
+
+        --accent: 170 70% 45%;
+        --accent-foreground: 225 25% 8%;
+
+        --destructive: 0 72% 55%;
+        --destructive-foreground: 210 40% 98%;
+
+        --border: 225 15% 25%;
+        --input: 225 15% 25%;
+        --ring: 199 89% 48%;
+
+        --radius: 1rem;
+
+        --sidebar-background: 225 25% 10%;
+        --sidebar-foreground: 210 40% 85%;
+        --sidebar-primary: 199 89% 48%;
+        --sidebar-primary-foreground: 225 25% 8%;
+        --sidebar-accent: 225 15% 18%;
+        --sidebar-accent-foreground: 210 40% 96%;
+        --sidebar-border: 225 15% 20%;
+        --sidebar-ring: 199 89% 48%;
+
+        /* Glassmorphism tokens */
+        --glass-bg: 225 20% 18% / 0.4;
+        --glass-border: 225 15% 40% / 0.3;
+        --glass-blur: 16px;
+        --glass-shadow: 0 8px 32px 0 hsla(225, 25%, 5%, 0.37);
+
+        /* Gradients */
+        --gradient-primary: linear-gradient(135deg, hsl(199, 89%, 48%), hsl(280, 60%, 55%));
+        --gradient-bg: linear-gradient(135deg, hsl(225, 30%, 8%) 0%, hsl(250, 25%, 12%) 50%, hsl(225, 25%, 10%) 100%);
+        --gradient-card: linear-gradient(135deg, hsla(199, 89%, 48%, 0.1), hsla(280, 60%, 55%, 0.05));
+
+        /* Success / Warning */
+        --success: 160 60% 45%;
+        --success-foreground: 160 60% 95%;
+        --warning: 38 92% 50%;
+        --warning-foreground: 38 92% 10%;
+
+        font-family: 'Montserrat', sans-serif;
+    }
+}
+
+@layer base {
+    * {
+        @apply border-border;
+    }
+
+    body {
+        @apply bg-background text-foreground;
+        font-family: 'Montserrat', sans-serif;
+        background: var(--gradient-bg);
+        min-height: 100vh;
+    }
+}
+
+@layer components {
+    .glass {
+        background: hsla(var(--glass-bg));
+        backdrop-filter: blur(var(--glass-blur));
+        -webkit-backdrop-filter: blur(var(--glass-blur));
+        border: 1px solid hsla(var(--glass-border));
+        box-shadow: var(--glass-shadow);
+    }
+
+    .glass-strong {
+        background: hsla(225, 20%, 18%, 0.6);
+        backdrop-filter: blur(24px);
+        -webkit-backdrop-filter: blur(24px);
+        border: 1px solid hsla(225, 15%, 45%, 0.35);
+        box-shadow: var(--glass-shadow);
+    }
+
+    .glass-subtle {
+        background: hsla(225, 20%, 18%, 0.25);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border: 1px solid hsla(225, 15%, 35%, 0.2);
+    }
+
+    .gradient-text {
+        background: var(--gradient-primary);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+
+    .glow-primary {
+        box-shadow: 0 0 20px hsla(199, 89%, 48%, 0.3), 0 0 60px hsla(199, 89%, 48%, 0.1);
+    }
+}

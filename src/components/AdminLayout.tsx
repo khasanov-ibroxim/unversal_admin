@@ -1,10 +1,11 @@
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AdminSidebar } from "@/components/AdminSidebar";
 import { Bell, User, Globe, LogOut } from "lucide-react";
-import { useState } from "react";
 import { useAuth } from "@/context/AuthContext";
+import { useLang } from "@/context/LangContext";
 import { useNavigate } from "react-router-dom";
 import { LOGIN } from "@/utils/consts";
+import { Toaster } from "@/components/ui/toaster";
 
 interface AdminLayoutProps {
     children: React.ReactNode;
@@ -12,7 +13,7 @@ interface AdminLayoutProps {
 }
 
 export function AdminLayout({ children, title }: AdminLayoutProps) {
-    const [lang, setLang] = useState<"EN" | "RU">("EN");
+    const { lang, setLang, tr } = useLang();
     const { user, logout } = useAuth();
     const navigate = useNavigate();
 
@@ -36,9 +37,7 @@ export function AdminLayout({ children, title }: AdminLayoutProps) {
                                 <button
                                     onClick={() => setLang("EN")}
                                     className={`px-3 py-2 text-sm font-medium transition-colors ${
-                                        lang === "EN"
-                                            ? "bg-primary text-primary-foreground"
-                                            : "text-muted-foreground hover:text-foreground"
+                                        lang === "EN" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
                                     }`}
                                 >
                                     EN
@@ -46,9 +45,7 @@ export function AdminLayout({ children, title }: AdminLayoutProps) {
                                 <button
                                     onClick={() => setLang("RU")}
                                     className={`px-3 py-2 text-sm font-medium transition-colors ${
-                                        lang === "RU"
-                                            ? "bg-primary text-primary-foreground"
-                                            : "text-muted-foreground hover:text-foreground"
+                                        lang === "RU" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
                                     }`}
                                 >
                                     RU
@@ -76,7 +73,7 @@ export function AdminLayout({ children, title }: AdminLayoutProps) {
                                 </div>
                                 <button
                                     onClick={handleLogout}
-                                    title="Chiqish"
+                                    title={tr.logout}
                                     className="glass rounded-lg p-2.5 hover:bg-red-500/20 transition-colors"
                                 >
                                     <LogOut className="h-4 w-4 text-muted-foreground hover:text-red-400" />
@@ -84,11 +81,10 @@ export function AdminLayout({ children, title }: AdminLayoutProps) {
                             </div>
                         </div>
                     </header>
-                    <main className="flex-1 p-4 md:p-6 overflow-auto">
-                        {children}
-                    </main>
+                    <main className="flex-1 p-4 md:p-6 overflow-auto">{children}</main>
                 </div>
             </div>
+            <Toaster />
         </SidebarProvider>
     );
 }

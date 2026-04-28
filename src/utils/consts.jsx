@@ -6,6 +6,9 @@ export const ADMIN_DASHBOARD = "/";
 export const ADMIN_ORDERS = "/orders";
 export const ADMIN_PRODUCTS = "/products";
 export const ADMIN_CATEGORIES = "/categories";
+export const ADMIN_COLLECTIONS = "/collections";
+export const ADMIN_CATALOG = "/catalog";
+export const ADMIN_BANNERS = "/banners";
 export const ADMIN_USERS = "/users";
 export const ADMIN_SHOPS = "/shops";
 export const ADMIN_MESSAGES = "/messages";
@@ -23,6 +26,9 @@ export const DashboardPage = lazy(() => import("@/pages/index"));
 export const OrdersPage = lazy(() => import("@/pages/Orders"));
 export const ProductsPage = lazy(() => import("@/pages/Products"));
 export const CategoriesPage = lazy(() => import("@/pages/Categories"));
+export const CollectionsPage = lazy(() => import("@/pages/Collections"));
+export const CatalogPage = lazy(() => import("@/pages/Catalog"));
+export const BannersPage = lazy(() => import("@/pages/Banners"));
 export const UsersPage = lazy(() => import("@/pages/Users"));
 export const ShopsPage = lazy(() => import("@/pages/Shops"));
 export const MessagesPage = lazy(() => import("@/pages/Messages"));
@@ -42,7 +48,6 @@ export const PUBLIC_ROUTES = [
 
 // =====================
 // PROTECTED ROUTES (auth required)
-// Add or remove routes here to manage the admin panel navigation
 // =====================
 export const PROTECTED_ROUTES = [
     {
@@ -64,6 +69,21 @@ export const PROTECTED_ROUTES = [
         path: ADMIN_CATEGORIES,
         Component: CategoriesPage,
         label: "Kategoriyalar",
+    },
+    {
+        path: ADMIN_COLLECTIONS,
+        Component: CollectionsPage,
+        label: "Kolleksiyalar",
+    },
+    {
+        path: ADMIN_CATALOG,
+        Component: CatalogPage,
+        label: "Katalog",
+    },
+    {
+        path: ADMIN_BANNERS,
+        Component: BannersPage,
+        label: "Bannerlar",
     },
     {
         path: ADMIN_USERS,

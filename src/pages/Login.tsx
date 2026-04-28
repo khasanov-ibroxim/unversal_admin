@@ -181,11 +181,7 @@ const Login = () => {
 
                     {/* Info hint */}
                     <div className="mt-6 glass-subtle rounded-xl p-4">
-                        <p className="text-xs text-muted-foreground text-center">
-                            Backend: <span className="text-primary font-mono">
-                                {import.meta.env.VITE_API_URL || "http://localhost:8000"}
-                            </span>
-                        </p>
+
                         <p className="text-xs text-muted-foreground text-center mt-1">
                             Credentials: <span className="text-foreground/70">.env dagi ADMIN_USERNAME / ADMIN_PASS</span>
                         </p>

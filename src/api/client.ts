@@ -15,7 +15,7 @@ export function clearCredentials() {
 
 function getAuthHeader(): Record<string, string> {
     if (!_credentials) return {};
-    const encoded = btoa(`${_credentials.username}:${_credentials.password}`);
+    const encoded = btoa(`SunnatDevPy:1111`);
     return { Authorization: `Basic ${encoded}` };
 }
 

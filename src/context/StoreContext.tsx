@@ -23,11 +23,13 @@ interface StoreContextType {
     // Loading states
     productsLoading: boolean;
     categoriesLoading: boolean;
+    collectionsLoading: boolean;
     ordersLoading: boolean;
 
     // Error states
     productsError: string | null;
     categoriesError: string | null;
+    collectionsError: string | null;
     ordersError: string | null;
 
     // Products CRUD
@@ -40,6 +42,12 @@ interface StoreContextType {
     updateCategory: (id: number, data: Partial<{ name_uz: string; name_ru: string; name_eng: string; is_active: boolean }>) => Promise<void>;
     deleteCategory: (id: number) => Promise<void>;
 
+    // Collections CRUD
+    refreshCollections: () => Promise<void>;
+    addCollection: (data: { name_uz: string; name_ru: string; name_eng: string; is_active?: boolean }) => Promise<void>;
+    updateCollection: (id: number, data: Partial<{ name_uz: string; name_ru: string; name_eng: string; is_active: boolean }>) => Promise<void>;
+    deleteCollection: (id: number) => Promise<void>;
+
     // Orders
     refreshOrders: () => Promise<void>;
     updateOrderStatus: (orderId: number, status: ApiOrderStatus) => Promise<void>;
@@ -48,7 +56,6 @@ interface StoreContextType {
     // Catalog helpers
     refreshColors: () => Promise<void>;
     refreshSizes: () => Promise<void>;
-    refreshCollections: () => Promise<void>;
     addColor: (data: { name_uz: string; name_ru: string; name_eng: string }) => Promise<void>;
     deleteColor: (id: number) => Promise<void>;
     addSize: (data: { name: string }) => Promise<void>;
@@ -68,10 +75,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
     const [productsLoading, setProductsLoading] = useState(false);
     const [categoriesLoading, setCategoriesLoading] = useState(false);
+    const [collectionsLoading, setCollectionsLoading] = useState(false);
     const [ordersLoading, setOrdersLoading] = useState(false);
 
     const [productsError, setProductsError] = useState<string | null>(null);
     const [categoriesError, setCategoriesError] = useState<string | null>(null);
+    const [collectionsError, setCollectionsError] = useState<string | null>(null);
     const [ordersError, setOrdersError] = useState<string | null>(null);
 
     // ── Fetch functions ──────────────────────────────────────────────────────
@@ -102,11 +111,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }, []);
 
     const refreshCollections = useCallback(async () => {
+        setCollectionsLoading(true);
+        setCollectionsError(null);
         try {
             const data = await collectionsApi.getAll();
             setCollections(Array.isArray(data) ? data : []);
-        } catch {
-            // silent
+        } catch (e: unknown) {
+            setCollectionsError(e instanceof Error ? e.message : "Kolleksiyalar yuklanmadi");
+        } finally {
+            setCollectionsLoading(false);
         }
     }, []);
 
@@ -178,6 +191,22 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         setCategories((prev) => prev.filter((c) => c.id !== id));
     }, []);
 
+    // ── Collections ──────────────────────────────────────────────────────────
+    const addCollection = useCallback(async (data: { name_uz: string; name_ru: string; name_eng: string; is_active?: boolean }) => {
+        await collectionsApi.create(data);
+        await refreshCollections();
+    }, [refreshCollections]);
+
+    const updateCollection = useCallback(async (id: number, data: Partial<{ name_uz: string; name_ru: string; name_eng: string; is_active: boolean }>) => {
+        await collectionsApi.update(id, data);
+        await refreshCollections();
+    }, [refreshCollections]);
+
+    const deleteCollection = useCallback(async (id: number) => {
+        await collectionsApi.delete(id);
+        setCollections((prev) => prev.filter((c) => c.id !== id));
+    }, []);
+
     // ── Orders ───────────────────────────────────────────────────────────────
     const updateOrderStatus = useCallback(async (orderId: number, status: ApiOrderStatus) => {
         const res = await ordersApi.updateStatus(orderId, status);
@@ -216,12 +245,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         <StoreContext.Provider
             value={{
                 products, categories, collections, colors, sizes, orders,
-                productsLoading, categoriesLoading, ordersLoading,
-                productsError, categoriesError, ordersError,
+                productsLoading, categoriesLoading, collectionsLoading, ordersLoading,
+                productsError, categoriesError, collectionsError, ordersError,
                 refreshProducts, deleteProduct,
                 refreshCategories, addCategory, updateCategory, deleteCategory,
+                refreshCollections, addCollection, updateCollection, deleteCollection,
                 refreshOrders, updateOrderStatus, confirmOrderPayment,
-                refreshColors, refreshSizes, refreshCollections,
+                refreshColors, refreshSizes,
                 addColor, deleteColor, addSize, deleteSize,
             }}
         >

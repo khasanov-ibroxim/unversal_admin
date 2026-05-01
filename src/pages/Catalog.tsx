@@ -10,7 +10,7 @@ export default function Catalog() {
     const { colors, sizes, addColor, deleteColor, addSize, deleteSize, refreshColors, refreshSizes } = useStore();
     const { success, error: toastError } = useAppToast();
 
-    const [colorForm, setColorForm] = useState({ name_uz: "", name_ru: "", name_eng: "" });
+    const [colorForm, setColorForm] = useState({ color_code: ""});
     const [sizeForm, setSizeForm] = useState({ name: "" });
     const [showColorForm, setShowColorForm] = useState(false);
     const [showSizeForm, setShowSizeForm] = useState(false);
@@ -20,12 +20,12 @@ export default function Catalog() {
     const [deleteSize_, setDeleteSize_] = useState<{ id: number; name: string } | null>(null);
 
     const handleAddColor = async () => {
-        if (!colorForm.name_uz || !colorForm.name_ru || !colorForm.name_eng) return;
+        if (!colorForm.color_code ) return;
         setSavingColor(true);
         try {
             await addColor(colorForm);
             success("Rang qo'shildi");
-            setColorForm({ name_uz: "", name_ru: "", name_eng: "" });
+            setColorForm({ color_code: "" });
             setShowColorForm(false);
         } catch (e: unknown) {
             toastError(e instanceof Error ? e.message : "Xatolik");
@@ -73,6 +73,7 @@ export default function Catalog() {
         }
     };
 
+    console.log(colors)
     return (
         <AdminLayout title="Katalog (Ranglar & O'lchamlar)">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -103,21 +104,9 @@ export default function Catalog() {
                             <div className="glass-subtle rounded-xl p-4 space-y-3">
                                 <div className="grid grid-cols-3 gap-2">
                                     <input
-                                        placeholder="UZ nomi"
-                                        value={colorForm.name_uz}
-                                        onChange={(e) => setColorForm(f => ({ ...f, name_uz: e.target.value }))}
-                                        className="w-full glass rounded-lg px-2 py-2 text-xs outline-none focus:ring-2 focus:ring-primary/50"
-                                    />
-                                    <input
-                                        placeholder="RU nomi"
-                                        value={colorForm.name_ru}
-                                        onChange={(e) => setColorForm(f => ({ ...f, name_ru: e.target.value }))}
-                                        className="w-full glass rounded-lg px-2 py-2 text-xs outline-none focus:ring-2 focus:ring-primary/50"
-                                    />
-                                    <input
-                                        placeholder="EN nomi"
-                                        value={colorForm.name_eng}
-                                        onChange={(e) => setColorForm(f => ({ ...f, name_eng: e.target.value }))}
+                                        placeholder="Color"
+                                        value={colorForm.color_code}
+                                        onChange={(e) => setColorForm(f => ({ ...f, color_code: e.target.value }))}
                                         className="w-full glass rounded-lg px-2 py-2 text-xs outline-none focus:ring-2 focus:ring-primary/50"
                                     />
                                 </div>
@@ -152,12 +141,11 @@ export default function Catalog() {
                                     <Palette className="h-3 w-3 text-primary" />
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                    <p className="text-sm font-medium">{color.name_eng}</p>
-                                    <p className="text-xs text-muted-foreground">{color.name_uz} · {color.name_ru}</p>
+                                    <p className="text-sm font-medium">{color.color_code}</p>
                                 </div>
                                 <span className="text-xs text-muted-foreground font-mono">#{color.id}</span>
                                 <button
-                                    onClick={() => setDeleteColor_({ id: color.id, name: color.name_eng })}
+                                    // onClick={() => setDeleteColor_({ id: color.id, name: color.name_eng })}
                                     className="opacity-0 group-hover:opacity-100 glass rounded-lg p-1.5 hover:bg-red-500/20 transition-all"
                                 >
                                     <Trash2 className="h-3 w-3 text-red-400" />

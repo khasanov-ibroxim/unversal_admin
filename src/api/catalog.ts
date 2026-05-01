@@ -21,9 +21,7 @@ export interface ApiCollection {
 
 export interface ApiColor {
     id: number;
-    name_uz: string;
-    name_ru: string;
-    name_eng: string;
+    color_code: string;
     [key: string]: unknown;
 }
 
@@ -86,17 +84,17 @@ export const collectionsApi = {
 // ─── Colors ───────────────────────────────────────────────────────────────────
 export const colorsApi = {
     getAll: () =>
-        apiFetch<ApiColor[]>("/color/"),
+        apiFetch<ApiColor[]>("/color"),
 
     getById: (id: number) =>
         apiFetch<ApiColor>(`/color/${id}`),
 
-    create: (data: { name_uz: string; name_ru: string; name_eng: string }) => {
+    create: (data: { color_code: string }) => {
         const fd = toFormData(data as Record<string, unknown>);
-        return apiFetch<{ ok: boolean; data: ApiColor }>("/color/", { method: "POST", body: fd });
+        return apiFetch<{ ok: boolean; data: ApiColor }>("/color", { method: "POST", body: fd });
     },
 
-    update: (id: number, data: Partial<{ name_uz: string; name_ru: string; name_eng: string }>) => {
+    update: (id: number, data: { color_code: string }) => {
         const fd = toFormData(data as Record<string, unknown>);
         return apiFetch<{ ok: boolean; data: ApiColor }>(`/color/${id}`, { method: "PATCH", body: fd });
     },
@@ -108,14 +106,14 @@ export const colorsApi = {
 // ─── Sizes ────────────────────────────────────────────────────────────────────
 export const sizesApi = {
     getAll: () =>
-        apiFetch<ApiSize[]>("/size/"),
+        apiFetch<ApiSize[]>("/size"),
 
     getById: (id: number) =>
         apiFetch<ApiSize>(`/size/${id}`),
 
     create: (data: { name: string }) => {
         const fd = toFormData(data as Record<string, unknown>);
-        return apiFetch<{ ok: boolean; data: ApiSize }>("/size/", { method: "POST", body: fd });
+        return apiFetch<{ ok: boolean; data: ApiSize }>("/size", { method: "POST", body: fd });
     },
 
     update: (id: number, data: { name: string }) => {
@@ -130,12 +128,12 @@ export const sizesApi = {
 // ─── Banners ──────────────────────────────────────────────────────────────────
 export const bannersApi = {
     getAll: () =>
-        apiFetch<{ photos: ApiBanner[] }>("/banners/"),
+        apiFetch<{ photos: ApiBanner[] }>("/banners"),
 
     create: (photo: File) => {
         const fd = new FormData();
         fd.append("photo", photo);
-        return apiFetch<{ ok: boolean }>("/banners/", { method: "POST", body: fd });
+        return apiFetch<{ ok: boolean }>("/banners", { method: "POST", body: fd });
     },
 
     delete: (id: number) =>

@@ -243,7 +243,7 @@ export function ProductModal({ open, onClose, product }: Props) {
     const getPhotoSrc = (p: ApiProductPhoto) => {
         const url = (p as any).photo_url || (p as any).photo;
         if (!url) return null;
-        return url.startsWith("http") ? url : `${BASE_URL}${url}`;
+        return url.startsWith("http") ? url : `${BASE_URL}/${url}`;
     };
 
     const getColorName = (id: number) => {

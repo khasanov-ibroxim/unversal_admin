@@ -10,7 +10,7 @@ export default function Catalog() {
     const { colors, sizes, addColor, deleteColor, addSize, deleteSize, refreshColors, refreshSizes } = useStore();
     const { success, error: toastError } = useAppToast();
 
-    const [colorForm, setColorForm] = useState({ color_code: ""});
+    const [colorForm, setColorForm] = useState({ color_code: "" });
     const [sizeForm, setSizeForm] = useState({ name: "" });
     const [showColorForm, setShowColorForm] = useState(false);
     const [showSizeForm, setShowSizeForm] = useState(false);
@@ -20,7 +20,7 @@ export default function Catalog() {
     const [deleteSize_, setDeleteSize_] = useState<{ id: number; name: string } | null>(null);
 
     const handleAddColor = async () => {
-        if (!colorForm.color_code ) return;
+        if (!colorForm.color_code) return;
         setSavingColor(true);
         try {
             await addColor(colorForm);
@@ -73,7 +73,7 @@ export default function Catalog() {
         }
     };
 
-    console.log(colors)
+    console.log(colors);
     return (
         <AdminLayout title="Katalog (Ranglar & O'lchamlar)">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -102,25 +102,75 @@ export default function Catalog() {
                     {showColorForm && (
                         <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} className="mb-4">
                             <div className="glass-subtle rounded-xl p-4 space-y-3">
-                                <div className="grid grid-cols-3 gap-2">
-                                    <input
-                                        placeholder="Color"
-                                        value={colorForm.color_code}
-                                        onChange={(e) => setColorForm(f => ({ ...f, color_code: e.target.value }))}
-                                        className="w-full glass rounded-lg px-2 py-2 text-xs outline-none focus:ring-2 focus:ring-primary/50"
-                                    />
+                                <div className="flex items-center gap-3">
+                                    {/* Color picker swatch — clicking opens native color picker */}
+                                    <label className="relative cursor-pointer shrink-0">
+                                        <div
+                                            className="h-10 w-10 rounded-lg border-2 border-white/20 shadow-lg transition-transform hover:scale-105"
+                                            style={{ backgroundColor: colorForm.color_code || "#000000" }}
+                                        />
+                                        <input
+                                            type="color"
+                                            value={colorForm.color_code || "#000000"}
+                                            onChange={(e) =>
+                                                setColorForm((f) => ({ ...f, color_code: e.target.value }))
+                                            }
+                                            className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                                        />
+                                    </label>
+
+                                    {/* Hex text input (manual entry) */}
+                                    <div className="flex-1 flex items-center glass rounded-lg px-3 py-2 gap-1.5 focus-within:ring-2 focus-within:ring-primary/50">
+                                        <span className="text-xs text-muted-foreground font-mono select-none">#</span>
+                                        <input
+                                            placeholder="000000"
+                                            value={colorForm.color_code.replace(/^#/, "")}
+                                            onChange={(e) => {
+                                                const raw = e.target.value
+                                                    .replace(/[^0-9a-fA-F]/g, "")
+                                                    .slice(0, 6);
+                                                setColorForm((f) => ({
+                                                    ...f,
+                                                    color_code: raw ? `#${raw}` : "",
+                                                }));
+                                            }}
+                                            className="flex-1 bg-transparent text-xs font-mono outline-none"
+                                            maxLength={6}
+                                        />
+                                        {/* Live preview dot next to hex input */}
+                                        {colorForm.color_code && (
+                                            <div
+                                                className="h-4 w-4 rounded-full shrink-0 border border-white/20"
+                                                style={{ backgroundColor: colorForm.color_code }}
+                                            />
+                                        )}
+                                    </div>
                                 </div>
+
                                 <div className="flex gap-2 justify-end">
-                                    <button onClick={() => setShowColorForm(false)} className="glass rounded-lg px-3 py-1.5 text-xs hover:bg-muted/20">
+                                    <button
+                                        onClick={() => {
+                                            setShowColorForm(false);
+                                            setColorForm({ color_code: "" });
+                                        }}
+                                        className="glass rounded-lg px-3 py-1.5 text-xs hover:bg-muted/20"
+                                    >
                                         <X className="h-3 w-3" />
                                     </button>
                                     <button
                                         onClick={handleAddColor}
-                                        disabled={savingColor}
+                                        disabled={savingColor || !colorForm.color_code}
                                         className="rounded-lg px-3 py-1.5 text-xs font-semibold flex items-center gap-1 disabled:opacity-50"
-                                        style={{ background: "linear-gradient(135deg, hsl(199,89%,48%), hsl(280,60%,55%))", color: "hsl(225,25%,8%)" }}
+                                        style={{
+                                            background: "linear-gradient(135deg, hsl(199,89%,48%), hsl(280,60%,55%))",
+                                            color: "hsl(225,25%,8%)",
+                                        }}
                                     >
-                                        {savingColor ? <div className="h-3 w-3 rounded-full border-2 border-current border-t-transparent animate-spin" /> : <Check className="h-3 w-3" />}
+                                        {savingColor ? (
+                                            <div className="h-3 w-3 rounded-full border-2 border-current border-t-transparent animate-spin" />
+                                        ) : (
+                                            <Check className="h-3 w-3" />
+                                        )}
                                         Saqlash
                                     </button>
                                 </div>
@@ -137,15 +187,17 @@ export default function Catalog() {
                                 transition={{ delay: i * 0.03 }}
                                 className="flex items-center gap-3 glass-subtle rounded-lg px-3 py-2.5 group hover:bg-muted/10"
                             >
-                                <div className="h-6 w-6 rounded-full bg-gradient-to-br from-primary/30 to-secondary/30 flex items-center justify-center shrink-0">
-                                    <Palette className="h-3 w-3 text-primary" />
-                                </div>
+                                {/* Show actual color instead of generic icon */}
+                                <div
+                                    className="h-6 w-6 rounded-full shrink-0 border border-white/20 shadow-sm"
+                                    style={{ backgroundColor: color.color_code }}
+                                />
                                 <div className="flex-1 min-w-0">
-                                    <p className="text-sm font-medium">{color.color_code}</p>
+                                    <p className="text-sm font-medium font-mono">{color.color_code}</p>
                                 </div>
                                 <span className="text-xs text-muted-foreground font-mono">#{color.id}</span>
                                 <button
-                                    // onClick={() => setDeleteColor_({ id: color.id, name: color.name_eng })}
+                                    onClick={() => setDeleteColor_({ id: color.id, name: color.color_code })}
                                     className="opacity-0 group-hover:opacity-100 glass rounded-lg p-1.5 hover:bg-red-500/20 transition-all"
                                 >
                                     <Trash2 className="h-3 w-3 text-red-400" />
@@ -198,9 +250,16 @@ export default function Catalog() {
                                         onClick={handleAddSize}
                                         disabled={savingSize || !sizeForm.name}
                                         className="rounded-lg px-3 py-1.5 text-xs font-semibold flex items-center gap-1 disabled:opacity-50"
-                                        style={{ background: "linear-gradient(135deg, hsl(199,89%,48%), hsl(280,60%,55%))", color: "hsl(225,25%,8%)" }}
+                                        style={{
+                                            background: "linear-gradient(135deg, hsl(199,89%,48%), hsl(280,60%,55%))",
+                                            color: "hsl(225,25%,8%)",
+                                        }}
                                     >
-                                        {savingSize ? <div className="h-3 w-3 rounded-full border-2 border-current border-t-transparent animate-spin" /> : <Check className="h-3 w-3" />}
+                                        {savingSize ? (
+                                            <div className="h-3 w-3 rounded-full border-2 border-current border-t-transparent animate-spin" />
+                                        ) : (
+                                            <Check className="h-3 w-3" />
+                                        )}
                                         Saqlash
                                     </button>
                                 </div>

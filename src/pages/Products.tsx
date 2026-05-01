@@ -12,12 +12,16 @@ import type { ApiProduct } from "@/api";
 import { BASE_URL } from "@/api";
 
 function ProductImage({ product }: { product: ApiProduct }) {
-    // API photo URL or placeholder
-    const photoUrl = (product as { photo_url?: string }).photo_url;
-    if (photoUrl) {
-        const src = photoUrl.startsWith("http") ? photoUrl : `${BASE_URL}${photoUrl}`;
-        return <img src={src} alt={product.name_eng} className="w-full h-full object-cover" />;
+    console.log(product)
+    if (product.product_photos){
+        const photoUrl = product.product_photos.photo;
+
+        if (photoUrl) {
+            const src = photoUrl.startsWith("http") ? photoUrl : `${BASE_URL}/${photoUrl}`;
+            return <img src={src} alt={product.name_eng} className="w-full h-full object-cover" />;
+        }
     }
+
     return (
         <div className="w-full h-full flex items-center justify-center bg-primary/10">
             <ImagePlus className="h-6 w-6 text-primary/40" />

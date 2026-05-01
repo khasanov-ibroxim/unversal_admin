@@ -13,6 +13,7 @@ export interface ApiProduct {
     description_eng: string;
     price: number;
     is_active: boolean;
+    product_photos: {photo:string , id:number}
     [key: string]: unknown;
 }
 

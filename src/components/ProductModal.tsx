@@ -59,6 +59,9 @@ export function ProductModal({ open, onClose, product }: Props) {
     // Load subresources when editing
     useEffect(() => {
         if (!open) return;
+        setItems([]);
+        setDetails([]);
+        setExistingPhotos([]);
         if (product) {
             setForm({
                 category_id: product.category_id as number,
@@ -82,15 +85,30 @@ export function ProductModal({ open, onClose, product }: Props) {
 
             setItemsLoading(true);
             productItemsApi.getAll(pid)
-                .then((data) => setItems(Array.isArray(data) ? data : []))
-                .catch(() => {})
-                .finally(() => setItemsLoading(false));
+                .then((data) => {
+                    const filtered = Array.isArray(data)
+                        ? data.filter(i => i.product_id === pid)
+                        : [];
+                    setItems(filtered);
+                })
 
             setDetailsLoading(true);
             productDetailsApi.getAll(pid)
-                .then((data) => setDetails(Array.isArray(data) ? data : []))
-                .catch(() => {})
-                .finally(() => setDetailsLoading(false));
+                .then((data) => {
+                    if (!Array.isArray(data)) {
+                        setDetails([]);
+                        return;
+                    }
+
+                    const filtered = data.filter(d => d.product_id === pid);
+                    setDetails(filtered);
+                })
+                .catch(() => {
+                    setDetails([]); // fallback
+                })
+                .finally(() => {
+                    setDetailsLoading(false); // 🔥 ENG MUHIM
+                });
         } else {
             setForm(makeEmpty());
             setExistingPhotos([]);
@@ -101,7 +119,7 @@ export function ProductModal({ open, onClose, product }: Props) {
         setNewPhotoPreview([]);
         setNewItem({ color_id: "", size_id: "", total_count: 1 });
         setNewDetail({ name_uz: "", name_ru: "", name_eng: "" });
-    }, [open, product]);
+    }, [open, product?.id]);
 
     if (!open) return null;
 
@@ -246,7 +264,7 @@ export function ProductModal({ open, onClose, product }: Props) {
         return url.startsWith("http") ? url : `${BASE_URL}/${url}`;
     };
 
-    const getColorName = (id: number) => {
+    const getColorName = (id: number ) => {
         const c = colors.find((x) => x.id === id);
         return c ? (lang === "RU" ? c.name_ru : c.name_eng) : `#${id}`;
     };

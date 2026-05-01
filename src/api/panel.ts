@@ -1,4 +1,4 @@
-import { apiFetch, toFormData } from "./client";
+import { apiFetch, toFormData, BASE_URL } from "./client";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 export interface AdminUser {
@@ -67,18 +67,35 @@ export const historyApi = {
 
     getLogs: (params: { entity?: string; date_from?: string; date_to?: string; limit?: number }) =>
         apiFetch<{ ok: boolean; data: AuditLog[]; meta: { count: number } }>("/history/logs", { params }),
+
+    getSalesStats: (params: { date_from?: string; date_to?: string }) =>
+        apiFetch<{ ok: boolean; data: unknown }>("/history/stats/sales", { params }),
+
+    getDashboardStats: (params?: { low_stock_threshold?: number; low_stock_limit?: number; top_limit?: number }) =>
+        apiFetch<{ ok: boolean; data: unknown }>("/history/stats/dashboard", { params }),
 };
 
 // ─── Excel API ────────────────────────────────────────────────────────────────
 export const excelApi = {
     downloadTemplate: async () => {
-        const { BASE_URL } = await import("./client");
-        const token = localStorage.getItem("admin_credentials");
-        let headers: Record<string, string> = {};
-        if (token) {
-            const creds = JSON.parse(token);
-            headers.Authorization = `Basic ${btoa(`${creds.username}:${creds.password}`)}`;
+        // BUG FIX: localStorage dagi credentials o'rniga apiFetch ichidagi
+        // getAuthHeader() dan foydalanish uchun to'g'ri credentials o'qiymiz
+        const raw = localStorage.getItem("admin_credentials");
+        let authHeader = "";
+        if (raw) {
+            try {
+                const creds = JSON.parse(raw);
+                authHeader = `Basic ${btoa(`${creds.username}:${creds.password}`)}`;
+            } catch {
+                // ignore
+            }
         }
+
+        const headers: Record<string, string> = {};
+        if (authHeader) {
+            headers.Authorization = authHeader;
+        }
+
         const resp = await fetch(`${BASE_URL}/excel/products/template`, { headers });
         if (!resp.ok) throw new Error("Template yuklab bo'lmadi");
         const blob = await resp.blob();

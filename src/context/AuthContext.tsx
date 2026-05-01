@@ -48,8 +48,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     useEffect(() => {
         const stored = loadFromStorage();
         if (stored) {
+            // IMPORTANT: credentials ni apiFetch ishlatishidan OLDIN set qilamiz
             setCredentials(stored.username, stored.password);
-            // Verify credentials still valid
             panelApi
                 .getMe()
                 .then((me) => {
@@ -61,7 +61,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                     });
                 })
                 .catch(() => {
-                    // Token invalid — clean up
+                    // Credentials yaroqsiz — tozalaymiz
                     clearCredentials();
                     removeFromStorage();
                 })
@@ -72,11 +72,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }, []);
 
     const login = useCallback(async (username: string, password: string) => {
-        // Set credentials so apiFetch can use them
+        // apiFetch ishlashi uchun avval credentials o'rnatamiz
         setCredentials(username, password);
 
         try {
-            // Verify by calling /panel/me
             const me = await panelApi.getMe();
             const authUser: AuthUser = {
                 username: me.username,
@@ -84,10 +83,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 role: me.status as "admin" | "operator",
                 id: me.id,
             };
+            // Muvaffaqiyatli bo'lsa saqlаymiz
             saveToStorage(username, password);
             setUser(authUser);
         } catch (err) {
-            // Clear on failure
+            // Xatolikda credentials ni tozalaymiz
             clearCredentials();
             throw err;
         }

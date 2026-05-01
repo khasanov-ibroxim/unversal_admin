@@ -1,5 +1,4 @@
 // ─── API Base Client ──────────────────────────────────────────────────────────
-// Base URL - o'zgartiring agar backend boshqa portda ishlaса
 export const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 // ─── Auth credentials storage ─────────────────────────────────────────────────
@@ -15,7 +14,8 @@ export function clearCredentials() {
 
 function getAuthHeader(): Record<string, string> {
     if (!_credentials) return {};
-    const encoded = btoa(`SunnatDevPy:1111`);
+    // BUG FIX: hardcoded "SunnatDevPy:1111" o'rniga haqiqiy credentials ishlatiladi
+    const encoded = btoa(`${_credentials.username}:${_credentials.password}`);
     return { Authorization: `Basic ${encoded}` };
 }
 

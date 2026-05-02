@@ -5,10 +5,12 @@ import { useState } from "react";
 import { useStore } from "@/context/StoreContext";
 import { useAppToast } from "@/hooks/use-app-toast";
 import { DeleteModal } from "@/components/DeleteModal";
+import { useLang } from "@/context/LangContext";
 
 export default function Catalog() {
     const { colors, sizes, addColor, deleteColor, addSize, deleteSize, refreshColors, refreshSizes } = useStore();
     const { success, error: toastError } = useAppToast();
+    const { tr } = useLang();
 
     const [colorForm, setColorForm] = useState({ color_code: "" });
     const [sizeForm, setSizeForm] = useState({ name: "" });
@@ -24,11 +26,11 @@ export default function Catalog() {
         setSavingColor(true);
         try {
             await addColor(colorForm);
-            success("Rang qo'shildi");
+            success(tr.colorAdded);
             setColorForm({ color_code: "" });
             setShowColorForm(false);
         } catch (e: unknown) {
-            toastError(e instanceof Error ? e.message : "Xatolik");
+            toastError(e instanceof Error ? e.message : tr.errorOccurred);
         } finally {
             setSavingColor(false);
         }
@@ -39,11 +41,11 @@ export default function Catalog() {
         setSavingSize(true);
         try {
             await addSize(sizeForm);
-            success("O'lcham qo'shildi");
+            success(tr.sizeAdded);
             setSizeForm({ name: "" });
             setShowSizeForm(false);
         } catch (e: unknown) {
-            toastError(e instanceof Error ? e.message : "Xatolik");
+            toastError(e instanceof Error ? e.message : tr.errorOccurred);
         } finally {
             setSavingSize(false);
         }
@@ -53,9 +55,9 @@ export default function Catalog() {
         if (!deleteColor_) return;
         try {
             await deleteColor(deleteColor_.id);
-            success("Rang o'chirildi");
+            success(tr.colorDeleted);
         } catch (e: unknown) {
-            toastError(e instanceof Error ? e.message : "Xatolik");
+            toastError(e instanceof Error ? e.message : tr.errorOccurred);
         } finally {
             setDeleteColor_(null);
         }
@@ -65,23 +67,23 @@ export default function Catalog() {
         if (!deleteSize_) return;
         try {
             await deleteSize(deleteSize_.id);
-            success("O'lcham o'chirildi");
+            success(tr.sizeDeleted);
         } catch (e: unknown) {
-            toastError(e instanceof Error ? e.message : "Xatolik");
+            toastError(e instanceof Error ? e.message : tr.errorOccurred);
         } finally {
             setDeleteSize_(null);
         }
     };
 
     return (
-        <AdminLayout title="Katalog (Ranglar & O'lchamlar)">
+        <AdminLayout title={tr.catalogTitle}>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Colors */}
                 <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass rounded-2xl p-6">
                     <div className="flex items-center justify-between mb-5">
                         <div className="flex items-center gap-2">
                             <Palette className="h-5 w-5 text-primary" />
-                            <h2 className="text-base font-semibold">Ranglar</h2>
+                            <h2 className="text-base font-semibold">{tr.colorsTitle}</h2>
                             <span className="text-xs glass rounded-full px-2 py-0.5 text-muted-foreground">{colors.length}</span>
                         </div>
                         <div className="flex gap-1">
@@ -93,7 +95,7 @@ export default function Catalog() {
                                 className="glass rounded-lg px-3 py-2 flex items-center gap-1.5 hover:bg-primary/20 transition-colors text-xs font-medium"
                             >
                                 <Plus className="h-3.5 w-3.5" />
-                                Qo'shish
+                                {tr.add}
                             </button>
                         </div>
                     </div>
@@ -204,7 +206,7 @@ export default function Catalog() {
                             </motion.div>
                         ))}
                         {colors.length === 0 && (
-                            <div className="text-center py-8 text-muted-foreground text-sm">Ranglar yo'q</div>
+                            <div className="text-center py-8 text-muted-foreground text-sm">{tr.noColors}</div>
                         )}
                     </div>
                 </motion.div>
@@ -214,7 +216,7 @@ export default function Catalog() {
                     <div className="flex items-center justify-between mb-5">
                         <div className="flex items-center gap-2">
                             <Ruler className="h-5 w-5 text-accent" />
-                            <h2 className="text-base font-semibold">O'lchamlar</h2>
+                            <h2 className="text-base font-semibold">{tr.sizesTitle}</h2>
                             <span className="text-xs glass rounded-full px-2 py-0.5 text-muted-foreground">{sizes.length}</span>
                         </div>
                         <div className="flex gap-1">
@@ -235,7 +237,7 @@ export default function Catalog() {
                         <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} className="mb-4">
                             <div className="glass-subtle rounded-xl p-4 space-y-3">
                                 <input
-                                    placeholder="O'lcham nomi (masalan: XL, 42, M)"
+                                    placeholder={tr.sizeName}
                                     value={sizeForm.name}
                                     onChange={(e) => setSizeForm({ name: e.target.value })}
                                     onKeyDown={(e) => e.key === "Enter" && handleAddSize()}
@@ -287,7 +289,7 @@ export default function Catalog() {
                             </motion.div>
                         ))}
                         {sizes.length === 0 && (
-                            <div className="text-center py-8 text-muted-foreground text-sm w-full">O'lchamlar yo'q</div>
+                            <div className="text-center py-8 text-muted-foreground text-sm w-full">{tr.noSizes}</div>
                         )}
                     </div>
                 </motion.div>
@@ -295,14 +297,14 @@ export default function Catalog() {
 
             <DeleteModal
                 open={!!deleteColor_}
-                title="Rangni o'chirish"
+                title={tr.deleteColor}
                 itemName={deleteColor_?.name || ""}
                 onConfirm={handleDeleteColor}
                 onClose={() => setDeleteColor_(null)}
             />
             <DeleteModal
                 open={!!deleteSize_}
-                title="O'lchamni o'chirish"
+                title={tr.deleteSize}
                 itemName={deleteSize_?.name || ""}
                 onConfirm={handleDeleteSize}
                 onClose={() => setDeleteSize_(null)}

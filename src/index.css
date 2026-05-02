@@ -77,6 +77,36 @@
         background: var(--gradient-bg);
         min-height: 100vh;
     }
+
+    /* Custom Scrollbar */
+    * {
+        scrollbar-width: thin;
+        scrollbar-color: hsl(199, 89%, 48%) hsl(225, 20%, 16%);
+    }
+
+    *::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+    }
+
+    *::-webkit-scrollbar-track {
+        background: hsl(225, 20%, 16%);
+        border-radius: 10px;
+    }
+
+    *::-webkit-scrollbar-thumb {
+        background: linear-gradient(135deg, hsl(199, 89%, 48%), hsl(280, 60%, 55%));
+        border-radius: 10px;
+        border: 2px solid hsl(225, 20%, 16%);
+    }
+
+    *::-webkit-scrollbar-thumb:hover {
+        background: linear-gradient(135deg, hsl(199, 89%, 58%), hsl(280, 60%, 65%));
+    }
+
+    *::-webkit-scrollbar-thumb:active {
+        background: linear-gradient(135deg, hsl(199, 89%, 38%), hsl(280, 60%, 45%));
+    }
 }
 
 @layer components {

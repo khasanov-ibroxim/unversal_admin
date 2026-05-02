@@ -13,7 +13,7 @@ import { historyApi, type SalesStats, type AnalyticsV2, type DashboardStats } fr
 import { useEffect, useState, useCallback } from "react";
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
-    ResponsiveContainer, Legend, PieChart, Pie, Cell,
+    ResponsiveContainer, Legend, PieChart, Pie, Cell, LineChart, Line,
 } from "recharts";
 import type { ClothingType } from "@/api/products";
 
@@ -303,7 +303,7 @@ export default function Index() {
                         <div className="flex items-center justify-between mb-5">
                             <div className="flex items-center gap-2">
                                 <TrendingUp className="h-4 w-4 text-primary" />
-                                <h3 className="text-base font-semibold">Sotuv statistikasi</h3>
+                                <h3 className="text-base font-semibold">{tr.salesStatistics}</h3>
                             </div>
                             <div className="flex items-center gap-2">
                                 <div className="flex gap-1 glass rounded-lg p-1">
@@ -317,7 +317,7 @@ export default function Index() {
                                                     : "text-muted-foreground hover:text-foreground"
                                             }`}
                                         >
-                                            {d} kun
+                                            {d} {tr.days}
                                         </button>
                                     ))}
                                 </div>
@@ -340,10 +340,10 @@ export default function Index() {
                         ) : salesStats ? (
                             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                                 {[
-                                    { label: "Jami buyurtma",  value: salesStats.total_orders.toLocaleString(),          icon: ShoppingCart, color: "text-blue-400"  },
-                                    { label: "To'langan",      value: salesStats.paid_orders.toLocaleString(),           icon: DollarSign,   color: "text-green-400" },
-                                    { label: "Sotilgan dona",  value: salesStats.sold_items_count.toLocaleString(),      icon: Package,      color: "text-accent"    },
-                                    { label: "Sotuv summasi",  value: `${fmtAmount(salesStats.sales_amount)} so'm`,      icon: TrendingUp,   color: "text-primary"   },
+                                    { label: tr.totalOrdersLabel,  value: salesStats.total_orders.toLocaleString(),          icon: ShoppingCart, color: "text-blue-400"  },
+                                    { label: tr.paidLabel,      value: salesStats.paid_orders.toLocaleString(),           icon: DollarSign,   color: "text-green-400" },
+                                    { label: tr.soldItemsLabel,  value: salesStats.sold_items_count.toLocaleString(),      icon: Package,      color: "text-accent"    },
+                                    { label: tr.salesAmountLabel,  value: `${fmtAmount(salesStats.sales_amount)} ${tr.sum}`,      icon: TrendingUp,   color: "text-primary"   },
                                 ].map(card => (
                                     <div key={card.label} className="glass-subtle rounded-xl p-4 flex flex-col gap-2">
                                         <card.icon className={`h-4 w-4 ${card.color}`} />
@@ -361,16 +361,16 @@ export default function Index() {
                         {analyticsV2 && (
                             <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-3">
                                 <div className="glass-subtle rounded-xl p-3">
-                                    <p className="text-xs text-muted-foreground">O'rtacha chek</p>
+                                    <p className="text-xs text-muted-foreground">{tr.averageCheck}</p>
                                     <p className="text-sm font-semibold text-primary mt-1">
                                         {typeof analyticsV2.average_check === 'number'
-                                            ? `${fmtAmount(analyticsV2.average_check)} so'm`
-                                            : '0 so\'m'
+                                            ? `${fmtAmount(analyticsV2.average_check)} ${tr.sum}`
+                                            : `0 ${tr.sum}`
                                         }
                                     </p>
                                 </div>
                                 <div className="glass-subtle rounded-xl p-3">
-                                    <p className="text-xs text-muted-foreground">Takroriy sotuv</p>
+                                    <p className="text-xs text-muted-foreground">{tr.repeatSales}</p>
                                     <p className="text-sm font-semibold text-accent mt-1">
                                         {analyticsV2.repeat_sales?.repeat_count ?? 0} ta
                                         <span className="text-xs text-muted-foreground ml-1">
@@ -382,8 +382,8 @@ export default function Index() {
                                     <p className="text-xs text-muted-foreground">LTV</p>
                                     <p className="text-sm font-semibold text-yellow-400 mt-1">
                                         {typeof analyticsV2.ltv === 'number'
-                                            ? `${fmtAmount(analyticsV2.ltv)} so'm`
-                                            : '0 so\'m'
+                                            ? `${fmtAmount(analyticsV2.ltv)} ${tr.sum}`
+                                            : `0 ${tr.sum}`
                                         }
                                     </p>
                                 </div>
@@ -397,9 +397,9 @@ export default function Index() {
                                         <BarChart2 className="h-4 w-4 text-primary" />
                                     </div>
                                     <div>
-                                        <p className="text-xs text-muted-foreground">Bugun</p>
-                                        <p className="text-sm font-semibold">{fmtAmount(dashStats.today_sales.revenue)} so'm</p>
-                                        <p className="text-xs text-muted-foreground">{dashStats.today_sales.orders_count} buyurtma</p>
+                                        <p className="text-xs text-muted-foreground">{tr.today}</p>
+                                        <p className="text-sm font-semibold">{fmtAmount(dashStats.today_sales.revenue)} {tr.sum}</p>
+                                        <p className="text-xs text-muted-foreground">{dashStats.today_sales.orders_count} {tr.orders.toLowerCase()}</p>
                                     </div>
                                 </div>
                                 <div className="glass-subtle rounded-xl p-3 flex items-center gap-3">
@@ -407,9 +407,9 @@ export default function Index() {
                                         <TrendingUp className="h-4 w-4 text-accent" />
                                     </div>
                                     <div>
-                                        <p className="text-xs text-muted-foreground">Bu hafta</p>
-                                        <p className="text-sm font-semibold">{fmtAmount(dashStats.week_sales.revenue)} so'm</p>
-                                        <p className="text-xs text-muted-foreground">{dashStats.week_sales.orders_count} buyurtma</p>
+                                        <p className="text-xs text-muted-foreground">{tr.thisWeek}</p>
+                                        <p className="text-sm font-semibold">{fmtAmount(dashStats.week_sales.revenue)} {tr.sum}</p>
+                                        <p className="text-xs text-muted-foreground">{dashStats.week_sales.orders_count} {tr.orders.toLowerCase()}</p>
                                     </div>
                                 </div>
                             </div>
@@ -423,7 +423,7 @@ export default function Index() {
                         transition={{ delay: 0.3 }}
                         className="glass rounded-2xl p-5 md:p-6"
                     >
-                        <h3 className="text-base font-semibold mb-4">To'lov turlari</h3>
+                        <h3 className="text-base font-semibold mb-4">{tr.paymentTypes}</h3>
                         {loadingStats ? (
                             <div className="flex items-center justify-center h-40">
                                 <RefreshCw className="h-5 w-5 text-muted-foreground animate-spin" />
@@ -472,7 +472,7 @@ export default function Index() {
                         transition={{ delay: 0.32 }}
                         className="glass rounded-2xl p-5 md:p-6"
                     >
-                        <h3 className="text-base font-semibold mb-4">Kunlik sotuv dinamikasi</h3>
+                        <h3 className="text-base font-semibold mb-4">{tr.dailySalesDynamics}</h3>
                         <ResponsiveContainer width="100%" height={200}>
                             <BarChart data={salesByDay} barCategoryGap="30%">
                                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(225,25%,18%)" vertical={false} />
@@ -500,9 +500,9 @@ export default function Index() {
                 >
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
                         <div>
-                            <h3 className="text-base font-semibold">{tr.topProducts} — Jins bo'yicha tahlil</h3>
+                            <h3 className="text-base font-semibold">{tr.topProducts} — {tr.genderAnalysis}</h3>
                             <p className="text-xs text-muted-foreground mt-0.5">
-                                Erkaklar, ayollar va unisex kiyimlari talab taqqoslash
+                                {tr.menWomenUnisex}
                             </p>
                         </div>
                         {/* Gender ratio pills */}
@@ -526,13 +526,13 @@ export default function Index() {
 
                     {enrichedTopProducts.length > 0 ? (
                         <ResponsiveContainer width="100%" height={240}>
-                            <BarChart data={enrichedTopProducts} barGap={3} barCategoryGap="25%">
+                            <LineChart data={enrichedTopProducts}>
                                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(225,25%,18%)" vertical={false} />
                                 <XAxis dataKey="name" tick={{ fill: "hsl(215,20%,55%)", fontSize: 11 }} axisLine={false} tickLine={false} />
                                 <YAxis tick={{ fill: "hsl(215,20%,55%)", fontSize: 11 }} axisLine={false} tickLine={false} width={30} />
                                 <Tooltip
                                     contentStyle={{ background: "hsl(225,25%,12%)", border: "1px solid hsl(225,25%,22%)", borderRadius: 8, fontSize: 12 }}
-                                    cursor={{ fill: "hsl(225,25%,20%)" }}
+                                    cursor={{ stroke: "hsl(225,25%,30%)", strokeWidth: 1 }}
                                     formatter={(val: number, name: string) => [
                                         `${val} dona`,
                                         name === "men" ? "Erkak" : name === "women" ? "Ayol" : "Unisex",
@@ -546,10 +546,10 @@ export default function Index() {
                                     formatter={(value) => value === "men" ? "Erkak" : value === "women" ? "Ayol" : "Unisex"}
                                     wrapperStyle={{ fontSize: 12, paddingTop: 8 }}
                                 />
-                                <Bar dataKey="men"    fill="hsl(210,90%,55%)" radius={[4, 4, 0, 0]} name="men"    />
-                                <Bar dataKey="women"  fill="hsl(340,75%,60%)" radius={[4, 4, 0, 0]} name="women"  />
-                                <Bar dataKey="unisex" fill="hsl(45,93%,47%)"  radius={[4, 4, 0, 0]} name="unisex" />
-                            </BarChart>
+                                <Line type="monotone" dataKey="men" stroke="hsl(210,90%,55%)" strokeWidth={2} dot={{ fill: "hsl(210,90%,55%)", r: 4 }} activeDot={{ r: 6 }} name="men" />
+                                <Line type="monotone" dataKey="women" stroke="hsl(340,75%,60%)" strokeWidth={2} dot={{ fill: "hsl(340,75%,60%)", r: 4 }} activeDot={{ r: 6 }} name="women" />
+                                <Line type="monotone" dataKey="unisex" stroke="hsl(45,93%,47%)" strokeWidth={2} dot={{ fill: "hsl(45,93%,47%)", r: 4 }} activeDot={{ r: 6 }} name="unisex" />
+                            </LineChart>
                         </ResponsiveContainer>
                     ) : loadingStats ? (
                         <div className="h-40 flex items-center justify-center">
@@ -602,7 +602,7 @@ export default function Index() {
                         <h3 className="text-base font-semibold">{tr.recentOrders}</h3>
                         {dashStats && (
                             <span className="text-xs glass rounded-full px-2 py-0.5 text-muted-foreground">
-                                {dashStats.new_orders} yangi
+                                {dashStats.new_orders} {tr.newOrders}
                             </span>
                         )}
                     </div>
@@ -617,16 +617,16 @@ export default function Index() {
                                     <th className="text-left pb-3 font-medium">ID</th>
                                     <th className="text-left pb-3 font-medium">{tr.customer}</th>
                                     <th className="text-left pb-3 font-medium hidden md:table-cell">
-                                        <span className="flex items-center gap-1"><MapPin className="h-3 w-3" /> Shahar</span>
+                                        <span className="flex items-center gap-1"><MapPin className="h-3 w-3" /> {tr.city}</span>
                                     </th>
                                     <th className="text-left pb-3 font-medium hidden lg:table-cell">
-                                        <span className="flex items-center gap-1"><Tag className="h-3 w-3" /> Mahsulotlar</span>
+                                        <span className="flex items-center gap-1"><Tag className="h-3 w-3" /> {tr.productsLabel}</span>
                                     </th>
-                                    <th className="text-left pb-3 font-medium hidden md:table-cell">To'lov</th>
+                                    <th className="text-left pb-3 font-medium hidden md:table-cell">{tr.payment}</th>
                                     {/* NEW: Total sum column */}
                                     <th className="text-right pb-3 font-medium hidden sm:table-cell">
                                             <span className="flex items-center justify-end gap-1">
-                                                <DollarSign className="h-3 w-3" /> Summa
+                                                <DollarSign className="h-3 w-3" /> {tr.amount}
                                             </span>
                                     </th>
                                     <th className="text-right pb-3 font-medium">{tr.orderStatus}</th>

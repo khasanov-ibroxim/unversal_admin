@@ -80,7 +80,7 @@ const Login = () => {
                                     className="h-16 w-16 rounded-2xl bg-primary flex items-center justify-center mb-4 glow-primary">
                             <Sparkles className="h-8 w-8 text-primary-foreground" />
                         </motion.div>
-                        <h1 className="text-2xl font-bold gradient-text">Innove Couture</h1>
+                        <h1 className="text-2xl font-bold gradient-text">Khiva Code</h1>
                         <p className="text-sm text-muted-foreground mt-1">Admin Panel</p>
                     </div>
 

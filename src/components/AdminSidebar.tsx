@@ -37,9 +37,9 @@ export function AdminSidebar() {
         { title: tr.orders, url: "/orders", icon: ShoppingCart },
         { title: tr.products, url: "/products", icon: Package },
         { title: tr.categories, url: "/categories", icon: Tag },
-        { title: "Kolleksiyalar", url: "/collections", icon: Layers },
-        { title: "Ranglar & O'lchamlar", url: "/catalog", icon: Palette },
-        { title: "Bannerlar", url: "/banners", icon: Image },
+        { title: tr.collectionsMenu, url: "/collections", icon: Layers },
+        { title: tr.colorsAndSizes, url: "/catalog", icon: Palette },
+        { title: tr.banners, url: "/banners", icon: Image },
         { title: tr.users, url: "/users", icon: Users },
     ];
 
@@ -55,7 +55,7 @@ export function AdminSidebar() {
                 <div className="flex items-center gap-3">
                     {!collapsed && (
                         <div>
-                            <h2 className="text-sm font-bold text-foreground">Innove Couture</h2>
+                            <h2 className="text-sm font-bold text-foreground">Khiva Code</h2>
                             <p className="text-xs text-muted-foreground">{tr.adminPanel}</p>
                         </div>
                     )}

@@ -4,6 +4,8 @@ import { useStore } from "@/context/StoreContext";
 import { useAppToast } from "@/hooks/use-app-toast";
 import { BASE_URL, productItemsApi, productPhotosApi } from "@/api";
 import type { ApiProduct, ClothingType, ApiProductItem, ApiProductPhoto } from "@/api/products";
+import { useLang } from "@/context/LangContext";
+import { t } from "@/i18n/translations";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface ProductFormData {
@@ -26,12 +28,6 @@ interface ProductItemForm {
     size_id: number | "";
     total_count: number | "";
 }
-
-const CLOTHING_OPTIONS: { value: ClothingType; label: string; emoji: string }[] = [
-    { value: "erkak",  label: "Erkak",  emoji: "👔" },
-    { value: "ayol",   label: "Ayol",   emoji: "👗" },
-    { value: "unisex", label: "Unisex", emoji: "🧥" },
-];
 
 const EMPTY_FORM: ProductFormData = {
     category_id:     "",
@@ -58,6 +54,8 @@ interface ProductModalProps {
 export function ProductModal({ open, onClose, product }: ProductModalProps) {
     const { categories, collections, colors, sizes, addProduct, updateProduct } = useStore();
     const { success, error: toastError } = useAppToast();
+    const { lang } = useLang();
+    const tr = t(lang);
 
     const [form, setForm] = useState<ProductFormData>(EMPTY_FORM);
     const [saving, setSaving] = useState(false);
@@ -70,14 +68,27 @@ export function ProductModal({ open, onClose, product }: ProductModalProps) {
     const [showItemForm, setShowItemForm] = useState(false);
     const [loadingItems, setLoadingItems] = useState(false);
     const [pendingItems, setPendingItems] = useState<ProductItemForm[]>([]);
+    const [showColorDropdown, setShowColorDropdown] = useState(false);
+    const [editingItem, setEditingItem] = useState<{ id: number; color_id: number; size_id: number; total_count: number } | null>(null);
 
-    const usedColorIds = productItems.map(item => item.color_id);
-    const usedSizeIds = productItems.map(item => item.size_id);
-    const availableColors = product ? colors.filter(c => usedColorIds.includes(c.id)) : colors;
-    const availableSizes = product ? sizes.filter(s => usedSizeIds.includes(s.id)) : sizes;
+    const CLOTHING_OPTIONS: { value: ClothingType; label: string; emoji: string }[] = [
+        { value: "erkak",  label: tr.male,  emoji: "👔" },
+        { value: "ayol",   label: tr.female,   emoji: "👗" },
+        { value: "unisex", label: tr.unisex, emoji: "🧥" },
+    ];
     // Populate form when editing
     useEffect(() => {
-        if (!open) return;
+        if (!open) {
+            // Modal yopilganda barcha state'larni tozalash
+            setForm(EMPTY_FORM);
+            setPhotoPreviews([]);
+            setExistingPhotos([]);
+            setProductItems([]);
+            setPendingItems([]);
+            setShowItemForm(false);
+            return;
+        }
+
         if (product) {
             setForm({
                 category_id:     product.category_id,
@@ -91,7 +102,9 @@ export function ProductModal({ open, onClose, product }: ProductModalProps) {
                 price:           product.price,
                 is_active:       product.is_active,
                 clothing_type:   (product.clothing_type as ClothingType) || "unisex",
+                photos:          [], // Yangi rasmlar uchun bo'sh array
             });
+            setPhotoPreviews([]); // Yangi preview'larni tozalash
             loadProductPhotos(product.id);
             loadProductItems(product.id);
             setPendingItems([]);
@@ -132,8 +145,11 @@ export function ProductModal({ open, onClose, product }: ProductModalProps) {
     const handlePhotoChange = (files: FileList | null) => {
         if (!files || files.length === 0) return;
         const newFiles = Array.from(files);
+
+        // Yangi rasmlarni qo'shish
         set("photos", [...(form.photos || []), ...newFiles]);
 
+        // Preview yaratish
         newFiles.forEach(file => {
             const reader = new FileReader();
             reader.onload = e => setPhotoPreviews(prev => [...prev, e.target?.result as string]);
@@ -143,22 +159,23 @@ export function ProductModal({ open, onClose, product }: ProductModalProps) {
 
     const handleRemoveNewPhoto = (index: number) => {
         setPhotoPreviews(prev => prev.filter((_, i) => i !== index));
-        set("photos", form.photos?.filter((_, i) => i !== index));
+        const updatedPhotos = form.photos?.filter((_, i) => i !== index) || [];
+        set("photos", updatedPhotos);
     };
 
     const handleRemoveExistingPhoto = async (photoId: number) => {
         try {
             await productPhotosApi.delete(photoId);
             setExistingPhotos(prev => prev.filter(p => p.id !== photoId));
-            success("Rasm o'chirildi");
+            success(tr.photoDeleted);
         } catch (e: unknown) {
-            toastError(e instanceof Error ? e.message : "Xatolik");
+            toastError(e instanceof Error ? e.message : tr.errorOccurred);
         }
     };
 
     const handleAddItem = async () => {
         if (!newItem.color_id || !newItem.size_id || !newItem.total_count) {
-            toastError("Rang, o'lcham va miqdorni to'ldiring");
+            toastError(tr.fillColorSizeQuantity);
             return;
         }
 
@@ -170,12 +187,12 @@ export function ProductModal({ open, onClose, product }: ProductModalProps) {
                     size_id: Number(newItem.size_id),
                     total_count: Number(newItem.total_count),
                 });
-                success("Variant qo'shildi");
+                success(tr.variantAdded);
                 setNewItem({ color_id: "", size_id: "", total_count: "" });
                 setShowItemForm(false);
                 await loadProductItems(product.id);
             } catch (e: unknown) {
-                toastError(e instanceof Error ? e.message : "Xatolik");
+                toastError(e instanceof Error ? e.message : tr.errorOccurred);
             }
         } else {
             setPendingItems(prev => [...prev, { ...newItem }]);
@@ -187,10 +204,37 @@ export function ProductModal({ open, onClose, product }: ProductModalProps) {
     const handleDeleteItem = async (itemId: number) => {
         try {
             await productItemsApi.delete(itemId);
-            success("Variant o'chirildi");
+            success(tr.variantDeleted);
             setProductItems(prev => prev.filter(i => i.id !== itemId));
         } catch (e: unknown) {
-            toastError(e instanceof Error ? e.message : "Xatolik");
+            toastError(e instanceof Error ? e.message : tr.errorOccurred);
+        }
+    };
+
+    const handleEditItem = (item: ApiProductItem) => {
+        setEditingItem({
+            id: item.id,
+            color_id: item.color_id,
+            size_id: item.size_id,
+            total_count: item.total_count,
+        });
+    };
+
+    const handleUpdateItem = async () => {
+        if (!editingItem) return;
+        try {
+            await productItemsApi.update(editingItem.id, {
+                color_id: editingItem.color_id,
+                size_id: editingItem.size_id,
+                total_count: editingItem.total_count,
+            });
+            success(tr.variantUpdated || "Variant yangilandi");
+            setEditingItem(null);
+            if (product?.id) {
+                await loadProductItems(product.id);
+            }
+        } catch (e: unknown) {
+            toastError(e instanceof Error ? e.message : tr.errorOccurred);
         }
     };
 
@@ -205,7 +249,7 @@ export function ProductModal({ open, onClose, product }: ProductModalProps) {
             !form.description_uz || !form.description_ru || !form.description_eng ||
             form.price === ""
         ) {
-            toastError("Barcha majburiy maydonlarni to'ldiring");
+            toastError(tr.fillAllFields);
             return;
         }
 
@@ -227,26 +271,38 @@ export function ProductModal({ open, onClose, product }: ProductModalProps) {
             };
 
             if (product) {
-                await updateProduct(product.id as number, data);
+                console.log("EDIT MODE: form.photos length =", form.photos?.length);
 
+                // Mahsulotni yangilashda rasm yubormaslik (faqat alohida qo'shish)
+                const { photo, ...updateData } = data;
+                await updateProduct(product.id as number, updateData);
+
+                // Faqat yangi tanlangan rasmlarni yuborish
                 if (form.photos && form.photos.length > 0) {
-                    for (const photo of form.photos) {
+                    console.log("EDIT MODE: Yuborilayotgan rasmlar soni =", form.photos.length);
+                    for (let i = 0; i < form.photos.length; i++) {
+                        console.log(`EDIT MODE: Rasm ${i + 1} yuborilmoqda`);
                         try {
-                            await productPhotosApi.create(product.id, photo);
+                            await productPhotosApi.create(product.id, form.photos[i]);
                         } catch (e: unknown) {
                             console.error("Rasm qo'shishda xatolik:", e);
                         }
                     }
                 }
 
-                success("Mahsulot yangilandi");
+                success(tr.productUpdated);
             } else {
+                console.log("CREATE MODE: form.photos length =", form.photos?.length);
                 const result = await addProduct(data);
-                success("Mahsulot qo'shildi");
+                console.log("CREATE MODE: Birinchi rasm data.photo orqali yuborildi");
+                success(tr.productAdded);
 
                 if (result?.id) {
+                    // Qo'shimcha rasmlarni yuborish (birinchi rasm allaqachon data.photo da yuborilgan)
                     if (form.photos && form.photos.length > 1) {
+                        console.log("CREATE MODE: Qo'shimcha rasmlar soni =", form.photos.length - 1);
                         for (let i = 1; i < form.photos.length; i++) {
+                            console.log(`CREATE MODE: Qo'shimcha rasm ${i} yuborilmoqda`);
                             try {
                                 await productPhotosApi.create(result.id, form.photos[i]);
                             } catch (e: unknown) {
@@ -271,9 +327,17 @@ export function ProductModal({ open, onClose, product }: ProductModalProps) {
                     }
                 }
             }
+
+            // State'larni tozalash
+            setForm(EMPTY_FORM);
+            setPhotoPreviews([]);
+            setExistingPhotos([]);
+            setProductItems([]);
+            setPendingItems([]);
+
             onClose();
         } catch (e: unknown) {
-            toastError(e instanceof Error ? e.message : "Xatolik yuz berdi");
+            toastError(e instanceof Error ? e.message : tr.errorOccurred);
         } finally {
             setSaving(false);
         }
@@ -293,7 +357,7 @@ export function ProductModal({ open, onClose, product }: ProductModalProps) {
                 {/* Header */}
                 <div className="sticky top-0 z-10 glass-strong flex items-center justify-between px-6 py-4 border-b border-border/30 rounded-t-2xl">
                     <h2 className="text-lg font-bold gradient-text">
-                        {isEdit ? "Mahsulotni tahrirlash" : "Yangi mahsulot"}
+                        {isEdit ? tr.editProductTitle : tr.newProductTitle}
                     </h2>
                     <button
                         onClick={onClose}
@@ -303,10 +367,10 @@ export function ProductModal({ open, onClose, product }: ProductModalProps) {
                     </button>
                 </div>
 
-                <div className="p-6 space-y-5 max-h-[calc(100vh-8rem)] overflow-y-auto">
+                <div className="p-6 space-y-5 max-h-[calc(100vh-8rem)] overflow-y-auto overflow-x-visible">
                     {/* ── Photo upload ── */}
                     <div>
-                        <label className="text-xs text-muted-foreground mb-2 block">Rasmlar (bir nechta)</label>
+                        <label className="text-xs text-muted-foreground mb-2 block">{tr.photos}</label>
 
                         {/* Existing photos */}
                         {existingPhotos.length > 0 && (
@@ -366,8 +430,8 @@ export function ProductModal({ open, onClose, product }: ProductModalProps) {
                         >
                             <div className="flex flex-col items-center gap-2 text-muted-foreground">
                                 <ImagePlus className="h-8 w-8 opacity-50" />
-                                <p className="text-xs">Rasm yuklash uchun bosing yoki sudrang</p>
-                                <p className="text-[10px] opacity-70">Bir nechta rasm tanlash mumkin</p>
+                                <p className="text-xs">{tr.uploadPhoto}</p>
+                                <p className="text-[10px] opacity-70">{tr.multiplePhotos}</p>
                             </div>
                         </div>
                         <input
@@ -383,26 +447,26 @@ export function ProductModal({ open, onClose, product }: ProductModalProps) {
                     {/* ── Category & Collection ── */}
                     <div className="grid grid-cols-2 gap-3">
                         <div>
-                            <label className="text-xs text-muted-foreground mb-1 block">Kategoriya *</label>
+                            <label className="text-xs text-muted-foreground mb-1 block">{tr.categoryRequired}</label>
                             <select
                                 value={form.category_id}
                                 onChange={e => set("category_id", Number(e.target.value) || "")}
                                 className="w-full glass rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/50 bg-transparent [&>option]:bg-background [&>option]:text-foreground"
                             >
-                                <option value="">Tanlang...</option>
+                                <option value="">{tr.selectOption}</option>
                                 {categories.map(c => (
                                     <option key={c.id} value={c.id}>{c.name_uz}</option>
                                 ))}
                             </select>
                         </div>
                         <div>
-                            <label className="text-xs text-muted-foreground mb-1 block">Kolleksiya *</label>
+                            <label className="text-xs text-muted-foreground mb-1 block">{tr.collectionRequired}</label>
                             <select
                                 value={form.collection_id}
                                 onChange={e => set("collection_id", Number(e.target.value) || "")}
                                 className="w-full glass rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/50 bg-transparent [&>option]:bg-background [&>option]:text-foreground"
                             >
-                                <option value="">Tanlang...</option>
+                                <option value="">{tr.selectOption}</option>
                                 {collections.map(c => (
                                     <option key={c.id} value={c.id}>{c.name_uz}</option>
                                 ))}
@@ -413,7 +477,7 @@ export function ProductModal({ open, onClose, product }: ProductModalProps) {
                     {/* ── Clothing type (gender) ── */}
                     <div>
                         <label className="text-xs text-muted-foreground mb-2 block">
-                            Kiyim turi (jins) *
+                            {tr.clothingType}
                         </label>
                         <div className="flex gap-2">
                             {CLOTHING_OPTIONS.map(opt => (
@@ -443,7 +507,7 @@ export function ProductModal({ open, onClose, product }: ProductModalProps) {
 
                     {/* ── Names ── */}
                     <div>
-                        <label className="text-xs text-muted-foreground mb-2 block">Nomi *</label>
+                        <label className="text-xs text-muted-foreground mb-2 block">{tr.nameRequired}</label>
                         <div className="grid grid-cols-3 gap-2">
                             {(["name_uz", "name_ru", "name_eng"] as const).map((field, i) => (
                                 <div key={field}>
@@ -453,7 +517,7 @@ export function ProductModal({ open, onClose, product }: ProductModalProps) {
                                     <input
                                         value={form[field]}
                                         onChange={e => set(field, e.target.value)}
-                                        placeholder={["O'zbek", "Русский", "English"][i]}
+                                        placeholder={[tr.uzbek, tr.russian, tr.english][i]}
                                         className="w-full glass rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/50"
                                     />
                                 </div>
@@ -463,7 +527,7 @@ export function ProductModal({ open, onClose, product }: ProductModalProps) {
 
                     {/* ── Descriptions ── */}
                     <div>
-                        <label className="text-xs text-muted-foreground mb-2 block">Tavsif *</label>
+                        <label className="text-xs text-muted-foreground mb-2 block">{tr.descriptionRequired}</label>
                         <div className="space-y-2">
                             {(["description_uz", "description_ru", "description_eng"] as const).map((field, i) => (
                                 <div key={field}>
@@ -473,7 +537,7 @@ export function ProductModal({ open, onClose, product }: ProductModalProps) {
                                     <textarea
                                         value={form[field]}
                                         onChange={e => set(field, e.target.value)}
-                                        placeholder={["O'zbek tavsif", "Описание на русском", "English description"][i]}
+                                        placeholder={[tr.uzbekDescription, tr.russianDescription, tr.englishDescription][i]}
                                         rows={2}
                                         className="w-full glass rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/50 resize-none"
                                     />
@@ -485,7 +549,7 @@ export function ProductModal({ open, onClose, product }: ProductModalProps) {
                     {/* ── Price & Status ── */}
                     <div className="flex items-end gap-4">
                         <div className="flex-1">
-                            <label className="text-xs text-muted-foreground mb-1 block">Narxi (so'm) *</label>
+                            <label className="text-xs text-muted-foreground mb-1 block">{tr.priceRequired}</label>
                             <input
                                 type="number"
                                 min={0}
@@ -502,7 +566,7 @@ export function ProductModal({ open, onClose, product }: ProductModalProps) {
                                 onChange={e => set("is_active", e.target.checked)}
                                 className="accent-primary w-4 h-4"
                             />
-                            Faol
+                            {tr.active}
                         </label>
                     </div>
 
@@ -510,49 +574,87 @@ export function ProductModal({ open, onClose, product }: ProductModalProps) {
                     <div className="border-t border-border/30 pt-5 mt-2">
                         <div className="flex items-center justify-between mb-3">
                             <div>
-                                <h3 className="text-sm font-semibold">Variantlar (Rang & O'lcham)</h3>
-                                <p className="text-xs text-muted-foreground mt-0.5">Mahsulot uchun rang va o'lcham kombinatsiyalari</p>
+                                <h3 className="text-sm font-semibold">{tr.variants}</h3>
+                                <p className="text-xs text-muted-foreground mt-0.5">{tr.variantsDescription}</p>
                             </div>
                             <button
                                 onClick={() => setShowItemForm(!showItemForm)}
                                 className="glass rounded-lg px-3 py-1.5 flex items-center gap-1.5 hover:bg-primary/20 transition-colors text-xs font-medium"
                             >
                                 <Plus className="h-3.5 w-3.5" />
-                                Qo'shish
+                                {tr.add}
                             </button>
                         </div>
 
                         {showItemForm && (
                             <div className="glass-subtle rounded-xl p-4 mb-3 space-y-3">
                                 <div className="grid grid-cols-3 gap-2">
-                                    <div>
-                                        <label className="text-xs text-muted-foreground mb-1 block">Rang</label>
-                                        <select
-                                            value={newItem.color_id}
-                                            onChange={e => setNewItem(prev => ({ ...prev, color_id: Number(e.target.value) || "" }))}
-                                            className="w-full glass rounded-lg px-2 py-1.5 text-xs outline-none focus:ring-2 focus:ring-primary/50 bg-transparent [&>option]:bg-background [&>option]:text-foreground"
+                                    <div className="relative z-20">
+                                        <label className="text-xs text-muted-foreground mb-1 block">{tr.color}</label>
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowColorDropdown(!showColorDropdown)}
+                                            className="w-full glass rounded-lg px-2 py-1.5 text-xs outline-none focus:ring-2 focus:ring-primary/50 flex items-center gap-2 text-left"
                                         >
-                                            <option value="">Tanlang</option>
-                                            {(product && productItems.length > 0 ? availableColors : colors).map(c => (
-                                                <option key={c.id} value={c.id}>{c.color_code}</option>
-                                            ))}
-                                        </select>
+                                            {newItem.color_id ? (
+                                                <>
+                                                    <div
+                                                        className="h-4 w-4 rounded-full shrink-0 border border-white/20"
+                                                        style={{ backgroundColor: colors.find(c => c.id === Number(newItem.color_id))?.color_code || "#ccc" }}
+                                                    />
+                                                    <span className="font-mono">
+                                                        {colors.find(c => c.id === Number(newItem.color_id))?.color_code}
+                                                    </span>
+                                                </>
+                                            ) : (
+                                                <span className="text-muted-foreground">{tr.selectOption}</span>
+                                            )}
+                                        </button>
+                                        {showColorDropdown && (
+                                            <>
+                                                {/* Backdrop to close dropdown */}
+                                                <div
+                                                    className="fixed inset-0 z-[51]"
+                                                    onClick={() => setShowColorDropdown(false)}
+                                                />
+                                                {/* Dropdown menu - opens upward */}
+                                                <div className="absolute z-[52] w-full bottom-full mb-1 bg-background rounded-lg border border-border/30 max-h-48 overflow-y-auto shadow-2xl">
+                                                    {colors.map(c => (
+                                                        <button
+                                                            key={c.id}
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setNewItem(prev => ({ ...prev, color_id: c.id }));
+                                                                setShowColorDropdown(false);
+                                                            }}
+                                                            className="w-full flex items-center gap-2 px-2 py-1.5 text-xs hover:bg-muted/20 transition-colors first:rounded-t-lg last:rounded-b-lg"
+                                                        >
+                                                            <div
+                                                                className="h-4 w-4 rounded-full shrink-0 border border-white/20"
+                                                                style={{ backgroundColor: c.color_code }}
+                                                            />
+                                                            <span className="font-mono">{c.color_code}</span>
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </>
+                                        )}
                                     </div>
                                     <div>
-                                        <label className="text-xs text-muted-foreground mb-1 block">O'lcham</label>
+                                        <label className="text-xs text-muted-foreground mb-1 block">{tr.size}</label>
                                         <select
                                             value={newItem.size_id}
                                             onChange={e => setNewItem(prev => ({ ...prev, size_id: Number(e.target.value) || "" }))}
                                             className="w-full glass rounded-lg px-2 py-1.5 text-xs outline-none focus:ring-2 focus:ring-primary/50 bg-transparent [&>option]:bg-background [&>option]:text-foreground"
                                         >
-                                            <option value="">Tanlang</option>
-                                            {(product && productItems.length > 0 ? availableSizes : sizes).map(s => (
+                                            <option value="">{tr.selectOption}</option>
+                                            {sizes.map(s => (
                                                 <option key={s.id} value={s.id}>{s.name}</option>
                                             ))}
                                         </select>
                                     </div>
                                     <div>
-                                        <label className="text-xs text-muted-foreground mb-1 block">Miqdor</label>
+                                        <label className="text-xs text-muted-foreground mb-1 block">{tr.quantity}</label>
                                         <input
                                             type="number"
                                             min={0}
@@ -567,6 +669,7 @@ export function ProductModal({ open, onClose, product }: ProductModalProps) {
                                     <button
                                         onClick={() => {
                                             setShowItemForm(false);
+                                            setShowColorDropdown(false);
                                             setNewItem({ color_id: "", size_id: "", total_count: "" });
                                         }}
                                         className="glass rounded-lg px-3 py-1.5 text-xs hover:bg-muted/20"
@@ -582,7 +685,7 @@ export function ProductModal({ open, onClose, product }: ProductModalProps) {
                                         }}
                                     >
                                         <Check className="h-3 w-3" />
-                                        Qo'shish
+                                        {tr.add}
                                     </button>
                                 </div>
                             </div>
@@ -591,13 +694,63 @@ export function ProductModal({ open, onClose, product }: ProductModalProps) {
                         <div className="space-y-2 max-h-48 overflow-y-auto">
                             {product ? (
                                 loadingItems ? (
-                                    <div className="text-center py-4 text-xs text-muted-foreground">Yuklanmoqda...</div>
+                                    <div className="text-center py-4 text-xs text-muted-foreground">{tr.loading}</div>
                                 ) : productItems.length === 0 ? (
                                     null
                                 ) : (
                                     productItems.map(item => {
                                         const color = colors.find(c => c.id === item.color_id);
                                         const size = sizes.find(s => s.id === item.size_id);
+                                        const isEditing = editingItem?.id === item.id;
+
+                                        if (isEditing) {
+                                            return (
+                                                <div key={item.id} className="glass-subtle rounded-lg p-3 space-y-2">
+                                                    <div className="grid grid-cols-3 gap-2">
+                                                        <select
+                                                            value={editingItem.color_id}
+                                                            onChange={e => setEditingItem(prev => prev ? {...prev, color_id: Number(e.target.value)} : null)}
+                                                            className="glass rounded-lg px-2 py-1.5 text-xs outline-none focus:ring-2 focus:ring-primary/50 bg-transparent [&>option]:bg-background [&>option]:text-foreground"
+                                                        >
+                                                            {colors.map(c => (
+                                                                <option key={c.id} value={c.id}>{c.color_code}</option>
+                                                            ))}
+                                                        </select>
+                                                        <select
+                                                            value={editingItem.size_id}
+                                                            onChange={e => setEditingItem(prev => prev ? {...prev, size_id: Number(e.target.value)} : null)}
+                                                            className="glass rounded-lg px-2 py-1.5 text-xs outline-none focus:ring-2 focus:ring-primary/50 bg-transparent [&>option]:bg-background [&>option]:text-foreground"
+                                                        >
+                                                            {sizes.map(s => (
+                                                                <option key={s.id} value={s.id}>{s.name}</option>
+                                                            ))}
+                                                        </select>
+                                                        <input
+                                                            type="number"
+                                                            min={0}
+                                                            value={editingItem.total_count}
+                                                            onChange={e => setEditingItem(prev => prev ? {...prev, total_count: Number(e.target.value)} : null)}
+                                                            className="glass rounded-lg px-2 py-1.5 text-xs outline-none focus:ring-2 focus:ring-primary/50"
+                                                        />
+                                                    </div>
+                                                    <div className="flex gap-2 justify-end">
+                                                        <button
+                                                            onClick={() => setEditingItem(null)}
+                                                            className="glass rounded-lg px-2 py-1 text-xs hover:bg-muted/20"
+                                                        >
+                                                            <X className="h-3 w-3" />
+                                                        </button>
+                                                        <button
+                                                            onClick={handleUpdateItem}
+                                                            className="glass rounded-lg px-2 py-1 text-xs hover:bg-primary/20"
+                                                        >
+                                                            <Check className="h-3 w-3 text-primary" />
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            );
+                                        }
+
                                         return (
                                             <div
                                                 key={item.id}
@@ -609,6 +762,13 @@ export function ProductModal({ open, onClose, product }: ProductModalProps) {
                                                 />
                                                 <span className="text-xs font-medium">{size?.name || "?"}</span>
                                                 <span className="text-xs text-muted-foreground ml-auto">×{item.total_count}</span>
+                                                <button
+                                                    onClick={() => handleEditItem(item)}
+                                                    className="opacity-0 group-hover:opacity-100 glass rounded-lg p-1 hover:bg-primary/20 transition-all"
+                                                    title="Edit"
+                                                >
+                                                    <Check className="h-3 w-3 text-primary" />
+                                                </button>
                                                 <button
                                                     onClick={() => handleDeleteItem(item.id)}
                                                     className="opacity-0 group-hover:opacity-100 glass rounded-lg p-1 hover:bg-red-500/20 transition-all"
@@ -657,7 +817,7 @@ export function ProductModal({ open, onClose, product }: ProductModalProps) {
                             onClick={onClose}
                             className="flex-1 glass rounded-xl py-2.5 text-sm font-medium hover:bg-muted/20 transition-colors"
                         >
-                            Bekor
+                            {tr.cancel}
                         </button>
                         <button
                             onClick={handleSubmit}
@@ -672,7 +832,7 @@ export function ProductModal({ open, onClose, product }: ProductModalProps) {
                                 ? <Loader2 className="h-4 w-4 animate-spin" />
                                 : <Check className="h-4 w-4" />
                             }
-                            {isEdit ? "Saqlash" : "Qo'shish"}
+                            {isEdit ? tr.save : tr.add}
                         </button>
                     </div>
                 </div>

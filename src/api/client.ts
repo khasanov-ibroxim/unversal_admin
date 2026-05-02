@@ -1,7 +1,5 @@
-// ─── API Base Client ──────────────────────────────────────────────────────────
 export const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
-// ─── Auth credentials storage ─────────────────────────────────────────────────
 let _credentials: { username: string; password: string } | null = null;
 
 export function setCredentials(username: string, password: string) {
@@ -14,19 +12,16 @@ export function clearCredentials() {
 
 function getAuthHeader(): Record<string, string> {
     if (!_credentials) return {};
-    // BUG FIX: hardcoded "SunnatDevPy:1111" o'rniga haqiqiy credentials ishlatiladi
     const encoded = btoa(`${_credentials.username}:${_credentials.password}`);
     return { Authorization: `Basic ${encoded}` };
 }
 
-// ─── Generic request helper ───────────────────────────────────────────────────
 export async function apiFetch<T = unknown>(
     path: string,
     options: RequestInit & { params?: Record<string, string | number | boolean | undefined | null> } = {}
 ): Promise<T> {
     const { params, ...fetchOptions } = options;
 
-    // Build URL with query params
     let url = `${BASE_URL}${path}`;
     if (params) {
         const query = Object.entries(params)
@@ -41,7 +36,6 @@ export async function apiFetch<T = unknown>(
         ...(fetchOptions.headers as Record<string, string> || {}),
     };
 
-    // Don't set Content-Type for FormData (browser sets it with boundary)
     if (!(fetchOptions.body instanceof FormData)) {
         if (!headers["Content-Type"] && fetchOptions.body) {
             headers["Content-Type"] = "application/json";
@@ -56,19 +50,16 @@ export async function apiFetch<T = unknown>(
             const errData = await response.json();
             errorMessage = errData?.detail || errData?.error || errorMessage;
         } catch {
-            // ignore parse error
         }
         throw new ApiError(response.status, errorMessage);
     }
 
-    // Some endpoints return empty body (204)
     const text = await response.text();
     if (!text) return {} as T;
 
     return JSON.parse(text) as T;
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 export function toFormData(obj: Record<string, unknown>): FormData {
     const fd = new FormData();
     for (const [k, v] of Object.entries(obj)) {
@@ -84,7 +75,6 @@ export function toFormData(obj: Record<string, unknown>): FormData {
     return fd;
 }
 
-// ─── Error class ──────────────────────────────────────────────────────────────
 export class ApiError extends Error {
     constructor(
         public status: number,

@@ -1,6 +1,8 @@
 import { apiFetch, toFormData } from "./client";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
+export type ClothingType = "erkak" | "ayol" | "unisex";
+
 export interface ApiProduct {
     id: number;
     category_id: number;
@@ -13,14 +15,15 @@ export interface ApiProduct {
     description_eng: string;
     price: number;
     is_active: boolean;
-    product_photos: {photo:string , id:number}
+    clothing_type: ClothingType;
+    product_photos: { photo: string; id: number };
     [key: string]: unknown;
 }
 
 export interface ApiProductPhoto {
     id: number;
     product_id: number;
-    photo_url: string;
+    photo: string;
     [key: string]: unknown;
 }
 
@@ -53,6 +56,7 @@ export interface CreateProductData {
     description_eng: string;
     price: number;
     is_active?: boolean;
+    clothing_type?: ClothingType;
     photo?: File;
 }
 
@@ -95,6 +99,7 @@ export const productsApi = {
         fd.append("description_eng", data.description_eng);
         fd.append("price", String(data.price));
         if (data.is_active !== undefined) fd.append("is_active", data.is_active ? "true" : "false");
+        if (data.clothing_type) fd.append("clothing_type", data.clothing_type);
         if (data.photo) fd.append("photo", data.photo);
         return apiFetch<{ ok: boolean; id: number }>("/products", { method: "POST", body: fd });
     },

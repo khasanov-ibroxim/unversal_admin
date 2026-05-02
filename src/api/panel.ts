@@ -1,4 +1,5 @@
 import { apiFetch, toFormData, BASE_URL } from "./client";
+import type { ClothingType } from "./products";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 export interface AdminUser {
@@ -46,7 +47,13 @@ export interface SalesStats {
 }
 
 export interface AnalyticsV2 {
-    top_products: { product_id: number; name: string; total_sold: number; revenue: number }[];
+    top_products: {
+        product_id: number;
+        name: string;
+        total_sold: number;
+        revenue: number;
+        clothing_type?: ClothingType;
+    }[];
     conversion_by_status: { status: string; orders_count: number; rate: number }[];
     average_check: number;
     ltv: number;
@@ -60,7 +67,13 @@ export interface DashboardStats {
     week_sales:  { orders_count: number; sold_items: number; revenue: number };
     new_orders:  number;
     low_stock:   unknown[];
-    top_products: { product_id: number; name: string; total_sold: number; revenue: number }[];
+    top_products: {
+        product_id: number;
+        name: string;
+        total_sold: number;
+        revenue: number;
+        clothing_type?: ClothingType;
+    }[];
 }
 
 // ─── Panel API ────────────────────────────────────────────────────────────────

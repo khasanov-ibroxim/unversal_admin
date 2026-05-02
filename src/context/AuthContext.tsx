@@ -1,7 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { setCredentials, clearCredentials, panelApi } from "@/api";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
 interface AuthUser {
     username: string;
     name: string;
@@ -17,7 +16,6 @@ interface AuthContextType {
     logout: () => void;
 }
 
-// ─── Storage helpers ──────────────────────────────────────────────────────────
 const STORAGE_KEY = "admin_credentials";
 
 function saveToStorage(username: string, password: string) {
@@ -37,18 +35,15 @@ function removeFromStorage() {
     localStorage.removeItem(STORAGE_KEY);
 }
 
-// ─── Context ──────────────────────────────────────────────────────────────────
 const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [user, setUser] = useState<AuthUser | null>(null);
     const [isLoading, setIsLoading] = useState(true);
 
-    // Restore session on mount
     useEffect(() => {
         const stored = loadFromStorage();
         if (stored) {
-            // IMPORTANT: credentials ni apiFetch ishlatishidan OLDIN set qilamiz
             setCredentials(stored.username, stored.password);
             panelApi
                 .getMe()
@@ -61,7 +56,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                     });
                 })
                 .catch(() => {
-                    // Credentials yaroqsiz — tozalaymiz
                     clearCredentials();
                     removeFromStorage();
                 })
@@ -72,7 +66,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }, []);
 
     const login = useCallback(async (username: string, password: string) => {
-        // apiFetch ishlashi uchun avval credentials o'rnatamiz
         setCredentials(username, password);
 
         try {
@@ -83,11 +76,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 role: me.status as "admin" | "operator",
                 id: me.id,
             };
-            // Muvaffaqiyatli bo'lsa saqlаymiz
             saveToStorage(username, password);
             setUser(authUser);
         } catch (err) {
-            // Xatolikda credentials ni tozalaymiz
             clearCredentials();
             throw err;
         }

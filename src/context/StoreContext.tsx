@@ -1,18 +1,16 @@
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
 import {
-    productsApi, productPhotosApi, productDetailsApi,
+    productsApi, productPhotosApi, productDetailsApi, productItemsApi,
     categoriesApi, collectionsApi, colorsApi, sizesApi,
     ordersApi,
     type ApiProduct, type ApiCategory, type ApiCollection,
     type ApiColor, type ApiSize, type ApiOrder, type ApiOrderStatus,
+    type CreateProductData, type UpdateProductData,
 } from "@/api";
 
-// ─── Re-export for backward compat ────────────────────────────────────────────
 export type { ApiProduct as StoreProduct, ApiCategory as StoreCategory, ApiOrder as StoreOrder, ApiOrderStatus as OrderStatus };
 
-// ─── Context type ─────────────────────────────────────────────────────────────
 interface StoreContextType {
-    // Data
     products: ApiProduct[];
     categories: ApiCategory[];
     collections: ApiCollection[];
@@ -20,40 +18,35 @@ interface StoreContextType {
     sizes: ApiSize[];
     orders: ApiOrder[];
 
-    // Loading states
     productsLoading: boolean;
     categoriesLoading: boolean;
     collectionsLoading: boolean;
     ordersLoading: boolean;
 
-    // Error states
     productsError: string | null;
     categoriesError: string | null;
     collectionsError: string | null;
     ordersError: string | null;
 
-    // Products CRUD
     refreshProducts: () => Promise<void>;
+    addProduct: (data: CreateProductData) => Promise<{ ok: boolean; id: number } | undefined>;
+    updateProduct: (id: number, data: UpdateProductData) => Promise<void>;
     deleteProduct: (id: number) => Promise<void>;
 
-    // Categories CRUD
     refreshCategories: () => Promise<void>;
     addCategory: (data: { name_uz: string; name_ru: string; name_eng: string; is_active?: boolean }) => Promise<void>;
     updateCategory: (id: number, data: Partial<{ name_uz: string; name_ru: string; name_eng: string; is_active: boolean }>) => Promise<void>;
     deleteCategory: (id: number) => Promise<void>;
 
-    // Collections CRUD
     refreshCollections: () => Promise<void>;
     addCollection: (data: { name_uz: string; name_ru: string; name_eng: string; is_active?: boolean }) => Promise<void>;
     updateCollection: (id: number, data: Partial<{ name_uz: string; name_ru: string; name_eng: string; is_active: boolean }>) => Promise<void>;
     deleteCollection: (id: number) => Promise<void>;
 
-    // Orders
     refreshOrders: () => Promise<void>;
     updateOrderStatus: (orderId: number, status: ApiOrderStatus) => Promise<void>;
     confirmOrderPayment: (orderId: number) => Promise<void>;
 
-    // Catalog helpers
     refreshColors: () => Promise<void>;
     refreshSizes: () => Promise<void>;
     addColor: (data: { color_code: string }) => Promise<void>;
@@ -64,7 +57,6 @@ interface StoreContextType {
 
 const StoreContext = createContext<StoreContextType | null>(null);
 
-// ─── Provider ─────────────────────────────────────────────────────────────────
 export function StoreProvider({ children }: { children: ReactNode }) {
     const [products, setProducts] = useState<ApiProduct[]>([]);
     const [categories, setCategories] = useState<ApiCategory[]>([]);
@@ -83,7 +75,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const [collectionsError, setCollectionsError] = useState<string | null>(null);
     const [ordersError, setOrdersError] = useState<string | null>(null);
 
-    // ── Fetch functions ──────────────────────────────────────────────────────
     const refreshProducts = useCallback(async () => {
         setProductsLoading(true);
         setProductsError(null);
@@ -128,7 +119,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             const data = await colorsApi.getAll();
             setColors(Array.isArray(data) ? data : []);
         } catch {
-            // silent
         }
     }, []);
 
@@ -137,7 +127,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             const data = await sizesApi.getAll();
             setSizes(Array.isArray(data) ? data : []);
         } catch {
-            // silent
         }
     }, []);
 
@@ -154,7 +143,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         }
     }, []);
 
-    // Initial load
     useEffect(() => {
         refreshProducts();
         refreshCategories();
@@ -164,13 +152,23 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         refreshOrders();
     }, [refreshProducts, refreshCategories, refreshCollections, refreshColors, refreshSizes, refreshOrders]);
 
-    // ── Products ─────────────────────────────────────────────────────────────
     const deleteProduct = useCallback(async (id: number) => {
         await productsApi.delete(id);
         setProducts((prev) => prev.filter((p) => p.id !== id));
     }, []);
 
-    // ── Categories ───────────────────────────────────────────────────────────
+    const addProduct = useCallback(async (data: CreateProductData) => {
+        const result = await productsApi.create(data);
+        await refreshProducts();
+        return result;
+    }, [refreshProducts]);
+
+    const updateProduct = useCallback(async (id: number, data: UpdateProductData) => {
+        const result = await productsApi.update(id, data);
+        setProducts(prev => prev.map(p => p.id === id ? { ...p, ...data } : p));
+        return result;
+    }, []);
+
     const addCategory = useCallback(async (data: { name_uz: string; name_ru: string; name_eng: string; is_active?: boolean }) => {
         const res = await categoriesApi.create(data);
         if (res.data) setCategories((prev) => [res.data, ...prev]);
@@ -191,7 +189,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         setCategories((prev) => prev.filter((c) => c.id !== id));
     }, []);
 
-    // ── Collections ──────────────────────────────────────────────────────────
     const addCollection = useCallback(async (data: { name_uz: string; name_ru: string; name_eng: string; is_active?: boolean }) => {
         await collectionsApi.create(data);
         await refreshCollections();
@@ -207,7 +204,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         setCollections((prev) => prev.filter((c) => c.id !== id));
     }, []);
 
-    // ── Orders ───────────────────────────────────────────────────────────────
     const updateOrderStatus = useCallback(async (orderId: number, status: ApiOrderStatus) => {
         const res = await ordersApi.updateStatus(orderId, status);
         if (res.data) {
@@ -220,7 +216,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         await refreshOrders();
     }, [refreshOrders]);
 
-    // ── Colors / Sizes ───────────────────────────────────────────────────────
     const addColor = useCallback(async (data: { color_code: string }) => {
         await colorsApi.create(data);
         await refreshColors();
@@ -247,7 +242,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
                 products, categories, collections, colors, sizes, orders,
                 productsLoading, categoriesLoading, collectionsLoading, ordersLoading,
                 productsError, categoriesError, collectionsError, ordersError,
-                refreshProducts, deleteProduct,
+                refreshProducts, addProduct, updateProduct, deleteProduct,
                 refreshCategories, addCategory, updateCategory, deleteCategory,
                 refreshCollections, addCollection, updateCollection, deleteCollection,
                 refreshOrders, updateOrderStatus, confirmOrderPayment,

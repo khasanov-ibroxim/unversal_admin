@@ -73,7 +73,6 @@ export default function Catalog() {
         }
     };
 
-    console.log(colors);
     return (
         <AdminLayout title="Katalog (Ranglar & O'lchamlar)">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

@@ -1,6 +1,5 @@
 import { apiFetch } from "./client";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
 export type ApiOrderStatus =
     | "yangi"
     | "to'landi"
@@ -59,37 +58,76 @@ export interface OrderSearchParams {
     limit?: number;
 }
 
-// ─── Orders API ───────────────────────────────────────────────────────────────
+async function withRetry<T>(
+    fn: () => Promise<T>,
+    retries = 3,
+    delayMs = 800
+): Promise<T> {
+    let lastError: unknown;
+    for (let attempt = 0; attempt < retries; attempt++) {
+        try {
+            return await fn();
+        } catch (err) {
+            lastError = err;
+            const status = (err as { status?: number })?.status;
+            if (status && status >= 400 && status < 500) throw err;
+            if (attempt < retries - 1) {
+                await new Promise(res => setTimeout(res, delayMs * (attempt + 1)));
+            }
+        }
+    }
+    throw lastError;
+}
+
 export const ordersApi = {
     getAll: () =>
-        apiFetch<{ ok: boolean; data: ApiOrder[]; meta: unknown; error: null }>("/order"),
+        withRetry(() =>
+            apiFetch<{ ok: boolean; data: ApiOrder[]; meta: unknown; error: null }>("/order")
+        ),
 
     search: (params: OrderSearchParams) =>
-        apiFetch<{ ok: boolean; data: ApiOrder[]; meta: { count: number }; error: null }>("/order/search", { params: params as Record<string, unknown> }),
+        withRetry(() =>
+            apiFetch<{ ok: boolean; data: ApiOrder[]; meta: { count: number }; error: null }>(
+                "/order/search",
+                { params: params as Record<string, unknown> }
+            )
+        ),
 
     getById: (id: number) =>
-        apiFetch<{ ok: boolean; data: ApiOrder; meta: unknown; error: null }>(`/order/${id}`),
+        withRetry(() =>
+            apiFetch<{ ok: boolean; data: ApiOrder; meta: unknown; error: null }>(`/order/${id}`)
+        ),
 
     create: (data: CreateOrderData) =>
-        apiFetch<{ ok: boolean; data: { order_id: number; status: string; order_items: ApiOrderItem[] }; meta: unknown; error: null }>("/order", {
-            method: "POST",
-            body: JSON.stringify(data),
-            headers: { "Content-Type": "application/json" },
-        }),
+        apiFetch<{ ok: boolean; data: { order_id: number; status: string; order_items: ApiOrderItem[] }; meta: unknown; error: null }>(
+            "/order",
+            {
+                method: "POST",
+                body: JSON.stringify(data),
+                headers: { "Content-Type": "application/json" },
+            }
+        ),
 
     confirmPayment: (orderId: number, nextStatus?: ApiOrderStatus) =>
-        apiFetch<{ ok: boolean; already_paid?: boolean; order_id: number; status: string }>(`/order/${orderId}/confirm-payment`, {
-            method: "POST",
-            body: JSON.stringify(nextStatus ? { next_status: nextStatus } : {}),
-            headers: { "Content-Type": "application/json" },
-        }),
+        withRetry(() =>
+            apiFetch<{ ok: boolean; already_paid?: boolean; order_id: number; status: string }>(
+                `/order/${orderId}/confirm-payment`,
+                {
+                    method: "POST",
+                    body: JSON.stringify(nextStatus ? { next_status: nextStatus } : {}),
+                    headers: { "Content-Type": "application/json" },
+                }
+            )
+        ),
 
     updateStatus: (orderId: number, newStatus: ApiOrderStatus) => {
         const fd = new FormData();
         fd.append("new_status", newStatus);
-        return apiFetch<{ ok: boolean; data: { order_id: number; status: string } }>(`/order/${orderId}/status`, {
-            method: "PATCH",
-            body: fd,
-        });
+        return withRetry(() =>
+            apiFetch<{ ok: boolean; data: { order_id: number; status: string } }>(
+                `/order/${orderId}/status`,
+                { method: "PATCH", body: fd }
+            )
+        );
     },
 };

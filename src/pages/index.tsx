@@ -15,6 +15,7 @@ import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
     ResponsiveContainer, Legend, PieChart, Pie, Cell,
 } from "recharts";
+import type { ClothingType } from "@/api/products";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const statusColors: Record<string, string> = {
@@ -29,17 +30,19 @@ const statusColors: Record<string, string> = {
 
 const PIE_COLORS = ["hsl(199,89%,48%)", "hsl(280,60%,55%)", "hsl(45,93%,47%)"];
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-function classifyGender(name?: string): "men" | "women" | "unisex" {
-    if (!name) return "unisex";
-    const lower = name.toLowerCase();
-    const womenKw = ["ayol", "женщин", "women", "woman", "lady", "ladies", "girl", "qiz", "xotin", "female"];
-    const menKw   = ["erkak", "мужск", "men", "man", "male", "boy", "o'g'il", "ogil"];
-    if (womenKw.some(k => lower.includes(k))) return "women";
-    if (menKw.some(k => lower.includes(k)))   return "men";
-    return "unisex";
-}
+const CLOTHING_LABELS: Record<ClothingType, string> = {
+    erkak:  "Erkak",
+    ayol:   "Ayol",
+    unisex: "Unisex",
+};
 
+const CLOTHING_COLORS: Record<ClothingType, { bg: string; text: string; dot: string }> = {
+    erkak:  { bg: "bg-blue-500/15",   text: "text-blue-400",   dot: "bg-blue-400"   },
+    ayol:   { bg: "bg-pink-500/15",   text: "text-pink-400",   dot: "bg-pink-400"   },
+    unisex: { bg: "bg-yellow-500/15", text: "text-yellow-400", dot: "bg-yellow-400" },
+};
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 function fmtAmount(n: number) {
     if (n >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(1)}B`;
     if (n >= 1_000_000)     return `${(n / 1_000_000).toFixed(1)}M`;
@@ -48,17 +51,23 @@ function fmtAmount(n: number) {
 }
 
 function toDateStr(d: Date) {
-    return d.toISOString().slice(0, 10); // "YYYY-MM-DD"
+    return d.toISOString().slice(0, 10);
 }
 
 function getDateRange(days: number) {
     const to   = new Date();
     const from = new Date();
     from.setDate(from.getDate() - days);
-    return {
-        date_from: toDateStr(from),
-        date_to:   toDateStr(to),
-    };
+    return { date_from: toDateStr(from), date_to: toDateStr(to) };
+}
+
+/**
+ * Resolve clothing_type from the product record or analytics entry.
+ * Falls back to "unisex" if the field is missing/invalid.
+ */
+function resolveClothingType(raw: string | undefined): ClothingType {
+    if (raw === "erkak" || raw === "ayol" || raw === "unisex") return raw;
+    return "unisex";
 }
 
 // ─── Main component ───────────────────────────────────────────────────────────
@@ -78,33 +87,16 @@ export default function Index() {
         setStatsError(null);
         try {
             const range = getDateRange(statsRange);
-
-            // Fire all 3 requests in parallel
             const [salesRes, analyticsRes, dashRes] = await Promise.allSettled([
                 historyApi.getSalesStats(range),
                 historyApi.getAnalyticsV2({ ...range, top_limit: 10 }),
                 historyApi.getDashboardStats({ top_limit: 10 }),
             ]);
 
-            if (salesRes.status === "fulfilled" && salesRes.value?.ok) {
-                setSalesStats(salesRes.value.data);
-            } else {
-                setSalesStats(null);
-            }
+            setSalesStats(salesRes.status === "fulfilled" && salesRes.value?.ok ? salesRes.value.data : null);
+            setAnalyticsV2(analyticsRes.status === "fulfilled" && analyticsRes.value?.ok ? analyticsRes.value.data : null);
+            setDashStats(dashRes.status === "fulfilled" && dashRes.value?.ok ? dashRes.value.data : null);
 
-            if (analyticsRes.status === "fulfilled" && analyticsRes.value?.ok) {
-                setAnalyticsV2(analyticsRes.value.data);
-            } else {
-                setAnalyticsV2(null);
-            }
-
-            if (dashRes.status === "fulfilled" && dashRes.value?.ok) {
-                setDashStats(dashRes.value.data);
-            } else {
-                setDashStats(null);
-            }
-
-            // Show error only if ALL failed
             if (
                 salesRes.status === "rejected" &&
                 analyticsRes.status === "rejected" &&
@@ -125,9 +117,7 @@ export default function Index() {
     const stats = [
         {
             title: tr.totalOrders,
-            value: salesStats
-                ? salesStats.total_orders.toString()
-                : orders.length.toString(),
+            value: salesStats ? salesStats.total_orders.toString() : orders.length.toString(),
             change: dashStats ? `+${dashStats.today_sales.orders_count} bugun` : "",
             trend: "up" as const,
             icon: ShoppingCart,
@@ -169,30 +159,63 @@ export default function Index() {
             .filter(d => d.value > 0)
         : [];
 
-    // ── Gender chart — use analytics-v2 top_products, fallback to dashboard ──
-    const topProductsRaw =
-        analyticsV2?.top_products?.length
-            ? analyticsV2.top_products
-            : dashStats?.top_products ?? [];
+    // ── Top products by gender (using Analytics.tsx logic) ───────────────────
+    const getTopProductsByGender = (clothingType: "erkak" | "ayol" | "unisex") => {
+        // Filter products by clothing type
+        const genderProducts = products.filter(p => p.clothing_type === clothingType);
 
-    const genderChartData = topProductsRaw.slice(0, 8).map(tp => {
-        const safeName = tp.name ?? "";
-        const gender = classifyGender(safeName);
-        const label  = safeName.length > 14 ? safeName.slice(0, 14) + "…" : safeName;
+        // Calculate sales count for each product from orders
+        const productSales = genderProducts.map(product => {
+            let totalSold = 0;
+            orders.forEach(order => {
+                if (order.order_items) {
+                    order.order_items.forEach(item => {
+                        if (item.product_id === product.id) {
+                            totalSold += item.count;
+                        }
+                    });
+                }
+            });
+            return { product, totalSold };
+        });
+
+        // Sort by total sold and get top N
+        return productSales
+            .filter(p => p.totalSold > 0)
+            .sort((a, b) => b.totalSold - a.totalSold)
+            .slice(0, 8);
+    };
+
+    const topMenProducts = getTopProductsByGender("erkak");
+    const topWomenProducts = getTopProductsByGender("ayol");
+    const topUnisexProducts = getTopProductsByGender("unisex");
+
+    // Combine all for chart
+    const allTopProducts = [...topMenProducts, ...topWomenProducts, ...topUnisexProducts]
+        .sort((a, b) => b.totalSold - a.totalSold)
+        .slice(0, 8);
+
+    const enrichedTopProducts = allTopProducts.map(tp => {
+        const productName = lang === "RU" ? tp.product.name_ru : tp.product.name_eng;
+        const label = productName.length > 14 ? productName.slice(0, 14) + "…" : productName;
+        const clothingType = resolveClothingType(tp.product.clothing_type as string | undefined);
+
         return {
-            name:     label,
-            fullName: safeName,
-            men:    gender === "men"    ? tp.total_sold : 0,
-            women:  gender === "women"  ? tp.total_sold : 0,
-            unisex: gender === "unisex" ? tp.total_sold : 0,
-            revenue: tp.revenue,
+            name:         label,
+            fullName:     productName,
+            men:          clothingType === "erkak"  ? tp.totalSold : 0,
+            women:        clothingType === "ayol"   ? tp.totalSold : 0,
+            unisex:       clothingType === "unisex" ? tp.totalSold : 0,
+            revenue:      tp.product.price * tp.totalSold,
+            clothingType,
         };
     });
 
-    const totalMen    = genderChartData.reduce((s, d) => s + d.men,    0);
-    const totalWomen  = genderChartData.reduce((s, d) => s + d.women,  0);
-    const totalUnisex = genderChartData.reduce((s, d) => s + d.unisex, 0);
-    const totalAll    = totalMen + totalWomen + totalUnisex || 1;
+    const totalMen    = enrichedTopProducts.reduce((s, d) => s + d.men,    0);
+    const totalWomen  = enrichedTopProducts.reduce((s, d) => s + d.women,  0);
+    const totalUnisex = enrichedTopProducts.reduce((s, d) => s + d.unisex, 0);
+    const totalAll    = Math.max(totalMen + totalWomen + totalUnisex, 1);
+    const hasAnyData  = totalMen + totalWomen + totalUnisex > 0;
 
     // ── Fallback store-based top products ────────────────────────────────────
     const storeTopProducts = products
@@ -231,9 +254,27 @@ export default function Index() {
             .join(", ");
     };
 
-    // ── Sales-by-day chart (from analytics-v2) ───────────────────────────────
+    /**
+     * Calculate total sum of an order:
+     * sum over order_items of (product.price * item.count)
+     */
+    const getOrderTotal = (order: typeof orders[0]): number | null => {
+        const items = (order as Record<string, unknown>).order_items as
+            { product_id?: number; product_item_id?: number; count?: number }[] | undefined;
+        if (!items?.length) return null;
+        let total = 0;
+        let allFound = true;
+        for (const item of items) {
+            const prod = products.find(p => p.id === item.product_id);
+            if (!prod) { allFound = false; continue; }
+            total += (prod.price ?? 0) * (item.count ?? 1);
+        }
+        return allFound || total > 0 ? total : null;
+    };
+
+    // ── Sales-by-day chart ────────────────────────────────────────────────────
     const salesByDay = (analyticsV2?.sales_by_day ?? []).slice(-14).map(d => ({
-        date:    d.date.slice(5),        // "MM-DD"
+        date:    d.date.slice(5),
         revenue: d.revenue,
         orders:  d.orders_count,
     }));
@@ -259,7 +300,6 @@ export default function Index() {
                         transition={{ delay: 0.2 }}
                         className="glass rounded-2xl p-5 md:p-6 lg:col-span-2"
                     >
-                        {/* Header */}
                         <div className="flex items-center justify-between mb-5">
                             <div className="flex items-center gap-2">
                                 <TrendingUp className="h-4 w-4 text-primary" />
@@ -291,7 +331,6 @@ export default function Index() {
                             </div>
                         </div>
 
-                        {/* KPI cards */}
                         {loadingStats ? (
                             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                                 {[...Array(4)].map((_, i) => (
@@ -301,30 +340,10 @@ export default function Index() {
                         ) : salesStats ? (
                             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                                 {[
-                                    {
-                                        label: "Jami buyurtma",
-                                        value: salesStats.total_orders.toLocaleString(),
-                                        icon: ShoppingCart,
-                                        color: "text-blue-400",
-                                    },
-                                    {
-                                        label: "To'langan",
-                                        value: salesStats.paid_orders.toLocaleString(),
-                                        icon: DollarSign,
-                                        color: "text-green-400",
-                                    },
-                                    {
-                                        label: "Sotilgan dona",
-                                        value: salesStats.sold_items_count.toLocaleString(),
-                                        icon: Package,
-                                        color: "text-accent",
-                                    },
-                                    {
-                                        label: "Sotuv summasi",
-                                        value: `${fmtAmount(salesStats.sales_amount)} so'm`,
-                                        icon: TrendingUp,
-                                        color: "text-primary",
-                                    },
+                                    { label: "Jami buyurtma",  value: salesStats.total_orders.toLocaleString(),          icon: ShoppingCart, color: "text-blue-400"  },
+                                    { label: "To'langan",      value: salesStats.paid_orders.toLocaleString(),           icon: DollarSign,   color: "text-green-400" },
+                                    { label: "Sotilgan dona",  value: salesStats.sold_items_count.toLocaleString(),      icon: Package,      color: "text-accent"    },
+                                    { label: "Sotuv summasi",  value: `${fmtAmount(salesStats.sales_amount)} so'm`,      icon: TrendingUp,   color: "text-primary"   },
                                 ].map(card => (
                                     <div key={card.label} className="glass-subtle rounded-xl p-4 flex flex-col gap-2">
                                         <card.icon className={`h-4 w-4 ${card.color}`} />
@@ -336,18 +355,18 @@ export default function Index() {
                         ) : statsError ? (
                             <p className="text-sm text-red-400/80 text-center py-6">{statsError}</p>
                         ) : (
-                            <p className="text-sm text-muted-foreground text-center py-6">
-                                Statistika mavjud emas
-                            </p>
+                            <p className="text-sm text-muted-foreground text-center py-6">Statistika mavjud emas</p>
                         )}
 
-                        {/* Analytics extra: avg check, repeat sales */}
                         {analyticsV2 && (
                             <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-3">
                                 <div className="glass-subtle rounded-xl p-3">
                                     <p className="text-xs text-muted-foreground">O'rtacha chek</p>
                                     <p className="text-sm font-semibold text-primary mt-1">
-                                        {fmtAmount(analyticsV2.average_check)} so'm
+                                        {typeof analyticsV2.average_check === 'number'
+                                            ? `${fmtAmount(analyticsV2.average_check)} so'm`
+                                            : '0 so\'m'
+                                        }
                                     </p>
                                 </div>
                                 <div className="glass-subtle rounded-xl p-3">
@@ -362,13 +381,15 @@ export default function Index() {
                                 <div className="glass-subtle rounded-xl p-3">
                                     <p className="text-xs text-muted-foreground">LTV</p>
                                     <p className="text-sm font-semibold text-yellow-400 mt-1">
-                                        {fmtAmount(analyticsV2.ltv ?? 0)} so'm
+                                        {typeof analyticsV2.ltv === 'number'
+                                            ? `${fmtAmount(analyticsV2.ltv)} so'm`
+                                            : '0 so\'m'
+                                        }
                                     </p>
                                 </div>
                             </div>
                         )}
 
-                        {/* Today vs Week mini comparison */}
                         {dashStats && (
                             <div className="mt-3 grid grid-cols-2 gap-3">
                                 <div className="glass-subtle rounded-xl p-3 flex items-center gap-3">
@@ -411,27 +432,14 @@ export default function Index() {
                             <>
                                 <ResponsiveContainer width="100%" height={160}>
                                     <PieChart>
-                                        <Pie
-                                            data={pieData}
-                                            cx="50%"
-                                            cy="50%"
-                                            innerRadius={45}
-                                            outerRadius={70}
-                                            paddingAngle={3}
-                                            dataKey="value"
-                                        >
+                                        <Pie data={pieData} cx="50%" cy="50%" innerRadius={45} outerRadius={70} paddingAngle={3} dataKey="value">
                                             {pieData.map((_, idx) => (
                                                 <Cell key={idx} fill={PIE_COLORS[idx % PIE_COLORS.length]} />
                                             ))}
                                         </Pie>
                                         <Tooltip
                                             formatter={(v: number) => [`${fmtAmount(v)} so'm`, "Summa"]}
-                                            contentStyle={{
-                                                background: "hsl(225,25%,12%)",
-                                                border: "1px solid hsl(225,25%,22%)",
-                                                borderRadius: 8,
-                                                fontSize: 12,
-                                            }}
+                                            contentStyle={{ background: "hsl(225,25%,12%)", border: "1px solid hsl(225,25%,22%)", borderRadius: 8, fontSize: 12 }}
                                         />
                                     </PieChart>
                                 </ResponsiveContainer>
@@ -439,10 +447,7 @@ export default function Index() {
                                     {pieData.map((d, idx) => (
                                         <div key={d.name} className="flex items-center justify-between text-xs">
                                             <div className="flex items-center gap-2">
-                                                <div
-                                                    className="h-2.5 w-2.5 rounded-full shrink-0"
-                                                    style={{ background: PIE_COLORS[idx % PIE_COLORS.length] }}
-                                                />
+                                                <div className="h-2.5 w-2.5 rounded-full shrink-0" style={{ background: PIE_COLORS[idx % PIE_COLORS.length] }} />
                                                 <span className="text-muted-foreground">{d.name}</span>
                                             </div>
                                             <div className="text-right">
@@ -454,14 +459,12 @@ export default function Index() {
                                 </div>
                             </>
                         ) : (
-                            <div className="flex items-center justify-center h-40 text-muted-foreground text-sm">
-                                Ma'lumot yo'q
-                            </div>
+                            <div className="flex items-center justify-center h-40 text-muted-foreground text-sm">Ma'lumot yo'q</div>
                         )}
                     </motion.div>
                 </div>
 
-                {/* ── Sales by day chart (analytics-v2) ── */}
+                {/* ── Sales by day chart ── */}
                 {salesByDay.length > 0 && (
                     <motion.div
                         initial={{ opacity: 0, y: 20 }}
@@ -473,26 +476,10 @@ export default function Index() {
                         <ResponsiveContainer width="100%" height={200}>
                             <BarChart data={salesByDay} barCategoryGap="30%">
                                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(225,25%,18%)" vertical={false} />
-                                <XAxis
-                                    dataKey="date"
-                                    tick={{ fill: "hsl(215,20%,55%)", fontSize: 10 }}
-                                    axisLine={false}
-                                    tickLine={false}
-                                />
-                                <YAxis
-                                    tick={{ fill: "hsl(215,20%,55%)", fontSize: 10 }}
-                                    axisLine={false}
-                                    tickLine={false}
-                                    width={38}
-                                    tickFormatter={fmtAmount}
-                                />
+                                <XAxis dataKey="date" tick={{ fill: "hsl(215,20%,55%)", fontSize: 10 }} axisLine={false} tickLine={false} />
+                                <YAxis tick={{ fill: "hsl(215,20%,55%)", fontSize: 10 }} axisLine={false} tickLine={false} width={38} tickFormatter={fmtAmount} />
                                 <Tooltip
-                                    contentStyle={{
-                                        background: "hsl(225,25%,12%)",
-                                        border: "1px solid hsl(225,25%,22%)",
-                                        borderRadius: 8,
-                                        fontSize: 12,
-                                    }}
+                                    contentStyle={{ background: "hsl(225,25%,12%)", border: "1px solid hsl(225,25%,22%)", borderRadius: 8, fontSize: 12 }}
                                     formatter={(v: number, name: string) => [
                                         name === "revenue" ? `${fmtAmount(v)} so'm` : `${v} ta`,
                                         name === "revenue" ? "Sotuv" : "Buyurtma",
@@ -504,7 +491,7 @@ export default function Index() {
                     </motion.div>
                 )}
 
-                {/* ── Gender-split top products chart ── */}
+                {/* ── Top products — Jins bo'yicha tahlil ── */}
                 <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -514,66 +501,54 @@ export default function Index() {
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
                         <div>
                             <h3 className="text-base font-semibold">{tr.topProducts} — Jins bo'yicha tahlil</h3>
-                            <p className="text-xs text-muted-foreground mt-0.5">Erkaklar, ayollar va unisex kiyimlari talab taqqoslash</p>
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                                Erkaklar, ayollar va unisex kiyimlari talab taqqoslash
+                            </p>
                         </div>
                         {/* Gender ratio pills */}
                         <div className="flex flex-wrap items-center gap-2 shrink-0">
-                            {[
-                                { label: "Erkak",  pct: Math.round((totalMen    / totalAll) * 100), color: "bg-blue-400",  text: "text-blue-400"  },
-                                { label: "Ayol",   pct: Math.round((totalWomen  / totalAll) * 100), color: "bg-pink-400",  text: "text-pink-400"  },
-                                { label: "Unisex", pct: Math.round((totalUnisex / totalAll) * 100), color: "bg-yellow-400", text: "text-yellow-400" },
-                            ].map(g => (
-                                <div key={g.label} className="flex items-center gap-1.5 glass-subtle rounded-full px-3 py-1">
-                                    <div className={`h-2 w-2 rounded-full ${g.color}`} />
-                                    <span className={`text-xs font-medium ${g.text}`}>{g.label}</span>
-                                    <span className="text-xs text-muted-foreground">{g.pct}%</span>
-                                </div>
-                            ))}
+                            {(["erkak", "ayol", "unisex"] as ClothingType[]).map(ct => {
+                                const counts: Record<ClothingType, number> = { erkak: totalMen, ayol: totalWomen, unisex: totalUnisex };
+                                const pct = hasAnyData ? Math.round((counts[ct] / totalAll) * 100) : null;
+                                const c = CLOTHING_COLORS[ct];
+                                return (
+                                    <div key={ct} className="flex items-center gap-1.5 glass-subtle rounded-full px-3 py-1">
+                                        <div className={`h-2 w-2 rounded-full ${c.dot}`} />
+                                        <span className={`text-xs font-medium ${c.text}`}>{CLOTHING_LABELS[ct]}</span>
+                                        <span className="text-xs text-muted-foreground">
+                                            {pct !== null ? `${pct}%` : "—"}
+                                        </span>
+                                    </div>
+                                );
+                            })}
                         </div>
                     </div>
 
-                    {genderChartData.length > 0 ? (
+                    {enrichedTopProducts.length > 0 ? (
                         <ResponsiveContainer width="100%" height={240}>
-                            <BarChart data={genderChartData} barGap={3} barCategoryGap="25%">
+                            <BarChart data={enrichedTopProducts} barGap={3} barCategoryGap="25%">
                                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(225,25%,18%)" vertical={false} />
-                                <XAxis
-                                    dataKey="name"
-                                    tick={{ fill: "hsl(215,20%,55%)", fontSize: 11 }}
-                                    axisLine={false}
-                                    tickLine={false}
-                                />
-                                <YAxis
-                                    tick={{ fill: "hsl(215,20%,55%)", fontSize: 11 }}
-                                    axisLine={false}
-                                    tickLine={false}
-                                    width={30}
-                                />
+                                <XAxis dataKey="name" tick={{ fill: "hsl(215,20%,55%)", fontSize: 11 }} axisLine={false} tickLine={false} />
+                                <YAxis tick={{ fill: "hsl(215,20%,55%)", fontSize: 11 }} axisLine={false} tickLine={false} width={30} />
                                 <Tooltip
-                                    contentStyle={{
-                                        background: "hsl(225,25%,12%)",
-                                        border: "1px solid hsl(225,25%,22%)",
-                                        borderRadius: 8,
-                                        fontSize: 12,
-                                    }}
+                                    contentStyle={{ background: "hsl(225,25%,12%)", border: "1px solid hsl(225,25%,22%)", borderRadius: 8, fontSize: 12 }}
                                     cursor={{ fill: "hsl(225,25%,20%)" }}
                                     formatter={(val: number, name: string) => [
                                         `${val} dona`,
                                         name === "men" ? "Erkak" : name === "women" ? "Ayol" : "Unisex",
                                     ]}
                                     labelFormatter={(label) => {
-                                        const item = genderChartData.find(d => d.name === label);
+                                        const item = enrichedTopProducts.find(d => d.name === label);
                                         return item?.fullName ?? label;
                                     }}
                                 />
                                 <Legend
-                                    formatter={(value) =>
-                                        value === "men" ? "Erkak" : value === "women" ? "Ayol" : "Unisex"
-                                    }
+                                    formatter={(value) => value === "men" ? "Erkak" : value === "women" ? "Ayol" : "Unisex"}
                                     wrapperStyle={{ fontSize: 12, paddingTop: 8 }}
                                 />
-                                <Bar dataKey="men"    fill="hsl(210,90%,55%)"  radius={[4, 4, 0, 0]} name="men"    />
-                                <Bar dataKey="women"  fill="hsl(340,75%,60%)"  radius={[4, 4, 0, 0]} name="women"  />
-                                <Bar dataKey="unisex" fill="hsl(45,93%,47%)"   radius={[4, 4, 0, 0]} name="unisex" />
+                                <Bar dataKey="men"    fill="hsl(210,90%,55%)" radius={[4, 4, 0, 0]} name="men"    />
+                                <Bar dataKey="women"  fill="hsl(340,75%,60%)" radius={[4, 4, 0, 0]} name="women"  />
+                                <Bar dataKey="unisex" fill="hsl(45,93%,47%)"  radius={[4, 4, 0, 0]} name="unisex" />
                             </BarChart>
                         </ResponsiveContainer>
                     ) : loadingStats ? (
@@ -587,7 +562,8 @@ export default function Index() {
                                 <p className="text-sm text-muted-foreground text-center py-6">{tr.noResults}</p>
                             ) : storeTopProducts.map(p => {
                                 const photoSrc = getPhotoSrc(p);
-                                const gender   = classifyGender(getProductName(p));
+                                const ct = resolveClothingType(p.clothing_type as string | undefined);
+                                const c = CLOTHING_COLORS[ct];
                                 return (
                                     <div key={p.id as number} className="flex items-center gap-3">
                                         <div className="h-10 w-10 rounded-xl overflow-hidden bg-primary/10 flex items-center justify-center shrink-0">
@@ -599,12 +575,8 @@ export default function Index() {
                                         <div className="flex-1 min-w-0">
                                             <p className="text-sm font-medium truncate">{getProductName(p)}</p>
                                             <div className="flex items-center gap-2 mt-0.5">
-                                                <span className={`text-xs px-1.5 py-0.5 rounded-full ${
-                                                    gender === "women"  ? "bg-pink-500/15 text-pink-400"
-                                                        : gender === "men"  ? "bg-blue-500/15 text-blue-400"
-                                                            : "bg-yellow-500/15 text-yellow-400"
-                                                }`}>
-                                                    {gender === "women" ? "Ayol" : gender === "men" ? "Erkak" : "Unisex"}
+                                                <span className={`text-xs px-1.5 py-0.5 rounded-full ${c.bg} ${c.text}`}>
+                                                    {CLOTHING_LABELS[ct]}
                                                 </span>
                                                 <span className="text-xs text-muted-foreground">{p.salesCount} {tr.sold}</span>
                                             </div>
@@ -651,6 +623,12 @@ export default function Index() {
                                         <span className="flex items-center gap-1"><Tag className="h-3 w-3" /> Mahsulotlar</span>
                                     </th>
                                     <th className="text-left pb-3 font-medium hidden md:table-cell">To'lov</th>
+                                    {/* NEW: Total sum column */}
+                                    <th className="text-right pb-3 font-medium hidden sm:table-cell">
+                                            <span className="flex items-center justify-end gap-1">
+                                                <DollarSign className="h-3 w-3" /> Summa
+                                            </span>
+                                    </th>
                                     <th className="text-right pb-3 font-medium">{tr.orderStatus}</th>
                                 </tr>
                                 </thead>
@@ -658,6 +636,7 @@ export default function Index() {
                                 {recentOrders.map(order => {
                                     const orderProductNames = getOrderProductNames(order);
                                     const city = (order as Record<string, unknown>).town_city as string | undefined;
+                                    const total = getOrderTotal(order);
                                     return (
                                         <tr
                                             key={order.id as number}
@@ -673,13 +652,13 @@ export default function Index() {
                                             <td className="py-3 hidden md:table-cell">
                                                 {city ? (
                                                     <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                                                        <MapPin className="h-3 w-3 shrink-0" />{city}
-                                                    </span>
+                                                            <MapPin className="h-3 w-3 shrink-0" />{city}
+                                                        </span>
                                                 ) : (
                                                     <span className="text-xs text-muted-foreground/40">—</span>
                                                 )}
                                             </td>
-                                            <td className="py-3 hidden lg:table-cell max-w-[220px]">
+                                            <td className="py-3 hidden lg:table-cell max-w-[200px]">
                                                 {orderProductNames ? (
                                                     <p className="text-xs text-muted-foreground truncate" title={orderProductNames}>
                                                         {orderProductNames}
@@ -690,6 +669,16 @@ export default function Index() {
                                             </td>
                                             <td className="py-3 hidden md:table-cell">
                                                 <span className="text-xs glass rounded-full px-2 py-0.5">{order.payment}</span>
+                                            </td>
+                                            {/* Total sum */}
+                                            <td className="py-3 hidden sm:table-cell text-right">
+                                                {total !== null ? (
+                                                    <span className="text-sm font-semibold text-primary whitespace-nowrap">
+                                                            {total.toLocaleString()} so'm
+                                                        </span>
+                                                ) : (
+                                                    <span className="text-xs text-muted-foreground/40">—</span>
+                                                )}
                                             </td>
                                             <td className="py-3 text-right">
                                                 <Badge

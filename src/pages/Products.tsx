@@ -1,8 +1,8 @@
 import { AdminLayout } from "@/components/AdminLayout";
 import { Badge } from "@/components/ui/badge";
 import { motion } from "framer-motion";
-import { Search, Plus, Edit, Trash2, Eye, Package, X, ImagePlus, RefreshCw, AlertCircle } from "lucide-react";
-import { useState } from "react";
+import { Search, Plus, Edit, Trash2, Eye, Package, X, ImagePlus, RefreshCw, AlertCircle, Filter, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
+import { useState, useEffect } from "react";
 import { useStore } from "@/context/StoreContext";
 import { useLang } from "@/context/LangContext";
 import { ProductModal } from "@/components/ProductModal";
@@ -12,7 +12,6 @@ import type { ApiProduct } from "@/api";
 import { BASE_URL } from "@/api";
 
 function ProductImage({ product }: { product: ApiProduct }) {
-    console.log(product)
     if (product.product_photos){
         const photoUrl = product.product_photos.photo;
 
@@ -30,13 +29,19 @@ function ProductImage({ product }: { product: ApiProduct }) {
 }
 
 export default function Products() {
-    const { products, categories, deleteProduct, productsLoading, productsError, refreshProducts } = useStore();
+    const { products, categories, collections, deleteProduct, productsLoading, productsError, refreshProducts } = useStore();
     const { tr, lang } = useLang();
     const { success, error: toastError } = useAppToast();
 
     const [search, setSearch] = useState("");
     const [filterCat, setFilterCat] = useState("");
+    const [filterCollection, setFilterCollection] = useState("");
     const [filterStatus, setFilterStatus] = useState("");
+    const [filterMinPrice, setFilterMinPrice] = useState("");
+    const [filterMaxPrice, setFilterMaxPrice] = useState("");
+    const [showAdvancedFilter, setShowAdvancedFilter] = useState(false);
+    const [currentPage, setCurrentPage] = useState(1);
+    const [itemsPerPage, setItemsPerPage] = useState(12);
     const [modalOpen, setModalOpen] = useState(false);
     const [editProduct, setEditProduct] = useState<ApiProduct | null>(null);
     const [deleteTarget, setDeleteTarget] = useState<ApiProduct | null>(null);
@@ -55,12 +60,34 @@ export default function Products() {
         const name = getProductName(p);
         const matchSearch = name.toLowerCase().includes(search.toLowerCase());
         const matchCat = !filterCat || String(p.category_id) === filterCat;
+        const matchCollection = !filterCollection || String(p.collection_id) === filterCollection;
         const matchStatus =
             !filterStatus ||
             (filterStatus === "active" && p.is_active) ||
             (filterStatus === "inactive" && !p.is_active);
-        return matchSearch && matchCat && matchStatus;
-    });
+
+        let matchMinPrice = true;
+        let matchMaxPrice = true;
+        if (filterMinPrice) {
+            matchMinPrice = p.price >= parseInt(filterMinPrice);
+        }
+        if (filterMaxPrice) {
+            matchMaxPrice = p.price <= parseInt(filterMaxPrice);
+        }
+
+        return matchSearch && matchCat && matchCollection && matchStatus && matchMinPrice && matchMaxPrice;
+    }).sort((a, b) => (b.id || 0) - (a.id || 0));
+
+    // ── Pagination ────────────────────────────────────────────────────────────
+    const totalPages = Math.ceil(filtered.length / itemsPerPage);
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    const paginatedProducts = filtered.slice(startIndex, endIndex);
+
+    // Reset to page 1 when filters change
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [search, filterCat, filterCollection, filterStatus, filterMinPrice, filterMaxPrice]);
 
     const handleDelete = async () => {
         if (!deleteTarget) return;
@@ -116,6 +143,13 @@ export default function Products() {
                     </div>
                     <div className="flex gap-2 shrink-0">
                         <button
+                            onClick={() => setShowAdvancedFilter(!showAdvancedFilter)}
+                            className={`glass rounded-lg p-2.5 hover:bg-muted/20 transition-colors ${showAdvancedFilter ? "bg-primary/20" : ""}`}
+                            title="Kengaytirilgan filter"
+                        >
+                            <Filter className="h-4 w-4 text-muted-foreground" />
+                        </button>
+                        <button
                             onClick={refreshProducts}
                             className="glass rounded-lg p-2.5 hover:bg-muted/20 transition-colors"
                             title="Yangilash"
@@ -131,6 +165,76 @@ export default function Products() {
                         </button>
                     </div>
                 </div>
+
+                {/* ── Advanced Filter Panel ── */}
+                {showAdvancedFilter && (
+                    <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="glass rounded-xl p-4 space-y-3"
+                    >
+                        <div className="flex items-center justify-between mb-2">
+                            <h3 className="text-sm font-semibold flex items-center gap-2">
+                                <Filter className="h-4 w-4" />
+                                Kengaytirilgan filter
+                            </h3>
+                            <button
+                                onClick={() => {
+                                    setFilterCollection("");
+                                    setFilterMinPrice("");
+                                    setFilterMaxPrice("");
+                                    setFilterCat("");
+                                    setFilterStatus("");
+                                    setSearch("");
+                                }}
+                                className="text-xs text-muted-foreground hover:text-foreground"
+                            >
+                                Tozalash
+                            </button>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                            {/* Collection filter */}
+                            <div>
+                                <label className="text-xs text-muted-foreground mb-1.5 block">Kolleksiya</label>
+                                <select
+                                    value={filterCollection}
+                                    onChange={(e) => setFilterCollection(e.target.value)}
+                                    className="w-full glass rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/50 bg-black"
+                                >
+                                    <option value="">Barchasi</option>
+                                    {collections.map((c) => (
+                                        <option key={c.id} value={String(c.id)}>
+                                            {lang === "RU" ? c.name_ru : c.name_eng}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                            {/* Min price */}
+                            <div>
+                                <label className="text-xs text-muted-foreground mb-1.5 block">Minimal narx</label>
+                                <input
+                                    type="number"
+                                    value={filterMinPrice}
+                                    onChange={(e) => setFilterMinPrice(e.target.value)}
+                                    placeholder="0"
+                                    className="w-full glass rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/50"
+                                />
+                            </div>
+                            {/* Max price */}
+                            <div>
+                                <label className="text-xs text-muted-foreground mb-1.5 block">Maksimal narx</label>
+                                <input
+                                    type="number"
+                                    value={filterMaxPrice}
+                                    onChange={(e) => setFilterMaxPrice(e.target.value)}
+                                    placeholder="999999999"
+                                    className="w-full glass rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/50"
+                                />
+                            </div>
+                        </div>
+                    </motion.div>
+                )}
 
                 {/* Error state */}
                 {productsError && (
@@ -161,8 +265,9 @@ export default function Products() {
                         <p className="text-muted-foreground">{tr.noResults}</p>
                     </div>
                 ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                        {filtered.map((product, i) => (
+                    <>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                            {paginatedProducts.map((product, i) => (
                             <motion.div
                                 key={product.id as number}
                                 initial={{ opacity: 0, y: 20 }}
@@ -227,6 +332,64 @@ export default function Products() {
                             </motion.div>
                         ))}
                     </div>
+
+                    {/* Pagination */}
+                    {filtered.length > 0 && totalPages > 1 && (
+                        <div className="glass rounded-xl p-4 flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <span className="text-xs text-muted-foreground">
+                                    {startIndex + 1}-{Math.min(endIndex, filtered.length)} / {filtered.length}
+                                </span>
+                                <select
+                                    value={itemsPerPage}
+                                    onChange={(e) => {
+                                        setItemsPerPage(Number(e.target.value));
+                                        setCurrentPage(1);
+                                    }}
+                                    className="glass rounded-lg px-2 py-1 text-xs outline-none bg-black"
+                                >
+                                    <option value={12}>12</option>
+                                    <option value={20}>20</option>
+                                    <option value={40}>40</option>
+                                    <option value={60}>60</option>
+                                </select>
+                            </div>
+                            <div className="flex items-center gap-1">
+                                <button
+                                    onClick={() => setCurrentPage(1)}
+                                    disabled={currentPage === 1}
+                                    className="glass rounded-lg p-1.5 hover:bg-muted/20 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                                >
+                                    <ChevronsLeft className="h-4 w-4" />
+                                </button>
+                                <button
+                                    onClick={() => setCurrentPage(currentPage - 1)}
+                                    disabled={currentPage === 1}
+                                    className="glass rounded-lg p-1.5 hover:bg-muted/20 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                                >
+                                    <ChevronLeft className="h-4 w-4" />
+                                </button>
+                                <span className="text-xs text-muted-foreground px-3">
+                                    {currentPage} / {totalPages}
+                                </span>
+                                <button
+                                    onClick={() => setCurrentPage(currentPage + 1)}
+                                    disabled={currentPage === totalPages}
+                                    className="glass rounded-lg p-1.5 hover:bg-muted/20 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                                >
+                                    <ChevronRight className="h-4 w-4" />
+                                </button>
+                                <button
+                                    onClick={() => setCurrentPage(totalPages)}
+                                    disabled={currentPage === totalPages}
+                                    className="glass rounded-lg p-1.5 hover:bg-muted/20 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                                >
+                                    <ChevronsRight className="h-4 w-4" />
+                                </button>
+                            </div>
+                        </div>
+                    )}
+                </>
                 )}
             </div>
 

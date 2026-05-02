@@ -30,6 +30,39 @@ export interface BootstrapData {
     product_details: unknown[];
 }
 
+export interface SalesStats {
+    from: string;
+    to: string;
+    total_orders: number;
+    paid_orders: number;
+    sold_items_count: number;
+    sales_amount: number;
+    payment_breakdown: {
+        click?: { orders_count: number; items_count: number; amount: number };
+        payme?: { orders_count: number; items_count: number; amount: number };
+        cash?:  { orders_count: number; items_count: number; amount: number };
+    };
+    currency: string;
+}
+
+export interface AnalyticsV2 {
+    top_products: { product_id: number; name: string; total_sold: number; revenue: number }[];
+    conversion_by_status: { status: string; orders_count: number; rate: number }[];
+    average_check: number;
+    ltv: number;
+    repeat_sales: { repeat_count: number; repeat_rate: number };
+    sales_by_day:  { date: string; orders_count: number; revenue: number }[];
+    sales_by_week: { week: string; orders_count: number; revenue: number }[];
+}
+
+export interface DashboardStats {
+    today_sales: { orders_count: number; sold_items: number; revenue: number };
+    week_sales:  { orders_count: number; sold_items: number; revenue: number };
+    new_orders:  number;
+    low_stock:   unknown[];
+    top_products: { product_id: number; name: string; total_sold: number; revenue: number }[];
+}
+
 // ─── Panel API ────────────────────────────────────────────────────────────────
 export const panelApi = {
     createOperator: (data: {
@@ -44,13 +77,8 @@ export const panelApi = {
             body: fd,
         });
     },
-
-    getUsers: () =>
-        apiFetch<AdminUser[]>("/panel/users"),
-
-    getMe: () =>
-        apiFetch<AdminUser>("/panel/me"),
-
+    getUsers: () => apiFetch<AdminUser[]>("/panel/users"),
+    getMe:    () => apiFetch<AdminUser>("/panel/me"),
     updateUser: (userId: number, data: { username?: string; operator_code?: string; is_active?: boolean }) => {
         const fd = toFormData(data as Record<string, unknown>);
         return apiFetch<{ ok: boolean }>(`/panel/users/${userId}`, { method: "PATCH", body: fd });
@@ -68,40 +96,35 @@ export const historyApi = {
     getLogs: (params: { entity?: string; date_from?: string; date_to?: string; limit?: number }) =>
         apiFetch<{ ok: boolean; data: AuditLog[]; meta: { count: number } }>("/history/logs", { params }),
 
-    getSalesStats: (params: { date_from?: string; date_to?: string }) =>
-        apiFetch<{ ok: boolean; data: unknown }>("/history/stats/sales", { params }),
+    getSalesStats: (params: { date_from: string; date_to: string }) =>
+        apiFetch<{ ok: boolean; data: SalesStats }>("/history/stats/sales", { params }),
+
+    getAnalyticsV2: (params: { date_from: string; date_to: string; top_limit?: number }) =>
+        apiFetch<{ ok: boolean; data: AnalyticsV2 }>("/history/stats/analytics-v2", { params }),
 
     getDashboardStats: (params?: { low_stock_threshold?: number; low_stock_limit?: number; top_limit?: number }) =>
-        apiFetch<{ ok: boolean; data: unknown }>("/history/stats/dashboard", { params }),
+        apiFetch<{ ok: boolean; data: DashboardStats }>("/history/stats/dashboard", { params }),
 };
 
 // ─── Excel API ────────────────────────────────────────────────────────────────
 export const excelApi = {
     downloadTemplate: async () => {
-        // BUG FIX: localStorage dagi credentials o'rniga apiFetch ichidagi
-        // getAuthHeader() dan foydalanish uchun to'g'ri credentials o'qiymiz
         const raw = localStorage.getItem("admin_credentials");
         let authHeader = "";
         if (raw) {
             try {
                 const creds = JSON.parse(raw);
                 authHeader = `Basic ${btoa(`${creds.username}:${creds.password}`)}`;
-            } catch {
-                // ignore
-            }
+            } catch { /* ignore */ }
         }
-
         const headers: Record<string, string> = {};
-        if (authHeader) {
-            headers.Authorization = authHeader;
-        }
-
+        if (authHeader) headers.Authorization = authHeader;
         const resp = await fetch(`${BASE_URL}/excel/products/template`, { headers });
         if (!resp.ok) throw new Error("Template yuklab bo'lmadi");
         const blob = await resp.blob();
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
+        const url  = URL.createObjectURL(blob);
+        const a    = document.createElement("a");
+        a.href     = url;
         a.download = "products_import_template.xlsx";
         a.click();
         URL.revokeObjectURL(url);
@@ -121,14 +144,9 @@ export const excelApi = {
 
 // ─── System API ───────────────────────────────────────────────────────────────
 export const systemApi = {
-    health: () =>
-        apiFetch<{ ok: boolean; service: string }>("/system/health"),
-
-    ready: () =>
-        apiFetch<{ ok: boolean; database: string }>("/system/ready"),
-
-    authMode: () =>
-        apiFetch<{ auth: string; jwt_enabled: boolean }>("/system/auth-mode"),
+    health:   () => apiFetch<{ ok: boolean; service: string }>("/system/health"),
+    ready:    () => apiFetch<{ ok: boolean; database: string }>("/system/ready"),
+    authMode: () => apiFetch<{ auth: string; jwt_enabled: boolean }>("/system/auth-mode"),
 };
 
 // ─── Frontend Bootstrap API ───────────────────────────────────────────────────

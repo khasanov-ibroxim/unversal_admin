@@ -228,7 +228,12 @@ export default function Index() {
 
     // ── Recent orders ────────────────────────────────────────────────────────
     const recentOrders = [...orders]
-        .sort((a, b) => (b.id as number) - (a.id as number))
+        .sort((a, b) => {
+            // Sort by created_at descending (newest first)
+            const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
+            const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
+            return dateB - dateA;
+        })
         .slice(0, 10);
 
     const getProductName = (p: typeof products[0]) =>

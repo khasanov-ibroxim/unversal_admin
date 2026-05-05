@@ -65,10 +65,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const [sizes, setSizes] = useState<ApiSize[]>([]);
     const [orders, setOrders] = useState<ApiOrder[]>([]);
 
-    const [productsLoading, setProductsLoading] = useState(false);
-    const [categoriesLoading, setCategoriesLoading] = useState(false);
-    const [collectionsLoading, setCollectionsLoading] = useState(false);
-    const [ordersLoading, setOrdersLoading] = useState(false);
+    const [productsLoading, setProductsLoading] = useState(true);
+    const [categoriesLoading, setCategoriesLoading] = useState(true);
+    const [collectionsLoading, setCollectionsLoading] = useState(true);
+    const [ordersLoading, setOrdersLoading] = useState(true);
 
     const [productsError, setProductsError] = useState<string | null>(null);
     const [categoriesError, setCategoriesError] = useState<string | null>(null);

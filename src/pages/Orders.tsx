@@ -89,33 +89,40 @@ export default function Orders() {
     };
 
     // ── Filtering ─────────────────────────────────────────────────────────────
-    const filtered = orders.filter((o) => {
-        const matchSearch =
-            String(o.id).includes(search) ||
-            o.first_name?.toLowerCase().includes(search.toLowerCase()) ||
-            o.last_name?.toLowerCase().includes(search.toLowerCase()) ||
-            o.contact?.includes(search);
-        const matchStatus = !filterStatus || o.status === filterStatus;
-        const matchPayment = !filterPayment || o.payment === filterPayment;
+    const filtered = orders
+        .filter((o) => {
+            const matchSearch =
+                String(o.id).includes(search) ||
+                o.first_name?.toLowerCase().includes(search.toLowerCase()) ||
+                o.last_name?.toLowerCase().includes(search.toLowerCase()) ||
+                o.contact?.includes(search);
+            const matchStatus = !filterStatus || o.status === filterStatus;
+            const matchPayment = !filterPayment || o.payment === filterPayment;
 
-        let matchDateFrom = true;
-        let matchDateTo = true;
-        if (o.created_at) {
-            const orderDate = new Date(o.created_at);
-            if (filterDateFrom) {
-                const fromDate = new Date(filterDateFrom);
-                fromDate.setHours(0, 0, 0, 0);
-                matchDateFrom = orderDate >= fromDate;
+            let matchDateFrom = true;
+            let matchDateTo = true;
+            if (o.created_at) {
+                const orderDate = new Date(o.created_at);
+                if (filterDateFrom) {
+                    const fromDate = new Date(filterDateFrom);
+                    fromDate.setHours(0, 0, 0, 0);
+                    matchDateFrom = orderDate >= fromDate;
+                }
+                if (filterDateTo) {
+                    const toDate = new Date(filterDateTo);
+                    toDate.setHours(23, 59, 59, 999);
+                    matchDateTo = orderDate <= toDate;
+                }
             }
-            if (filterDateTo) {
-                const toDate = new Date(filterDateTo);
-                toDate.setHours(23, 59, 59, 999);
-                matchDateTo = orderDate <= toDate;
-            }
-        }
 
-        return matchSearch && matchStatus && matchPayment && matchDateFrom && matchDateTo;
-    });
+            return matchSearch && matchStatus && matchPayment && matchDateFrom && matchDateTo;
+        })
+        .sort((a, b) => {
+            // Sort by created_at descending (newest first)
+            const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
+            const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
+            return dateB - dateA;
+        });
 
     // ── Pagination ────────────────────────────────────────────────────────────
     const totalPages = Math.ceil(filtered.length / itemsPerPage);

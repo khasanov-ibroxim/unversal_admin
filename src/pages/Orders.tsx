@@ -13,17 +13,18 @@ import { useAppToast } from "@/hooks/use-app-toast";
 import type { ApiOrder, ApiOrderStatus } from "@/api";
 
 const API_STATUSES: ApiOrderStatus[] = [
-    "yangi", "to'landi", "jarayonda", "tayyor", "yetkazilmoqda", "yetkazildi", "bekor qilindi",
+    "new", "paid", "is_process", "ready", "in_progress", "delivered", "cancelled", "vozvrat",
 ];
 
 const statusColors: Record<string, string> = {
-    "yangi":          "bg-blue-500/15 text-blue-400 border-blue-500/20",
-    "to'landi":       "bg-success/15 text-success border-success/20",
-    "jarayonda":      "bg-primary/15 text-primary border-primary/20",
-    "tayyor":         "bg-accent/15 text-accent border-accent/20",
-    "yetkazilmoqda":  "bg-warning/15 text-warning border-warning/20",
-    "yetkazildi":     "bg-success/15 text-success border-success/20",
-    "bekor qilindi":  "bg-destructive/15 text-destructive border-destructive/20",
+    "new":          "bg-blue-500/15 text-blue-400 border-blue-500/20",
+    "paid":         "bg-success/15 text-success border-success/20",
+    "is_process":   "bg-primary/15 text-primary border-primary/20",
+    "ready":        "bg-accent/15 text-accent border-accent/20",
+    "in_progress":  "bg-warning/15 text-warning border-warning/20",
+    "delivered":    "bg-success/15 text-success border-success/20",
+    "cancelled":    "bg-destructive/15 text-destructive border-destructive/20",
+    "vozvrat":      "bg-orange-500/15 text-orange-400 border-orange-500/20",
 };
 
 // ─── How many times to silently auto-retry on first load ─────────────────────
@@ -44,7 +45,7 @@ export default function Orders() {
     const [currentPage, setCurrentPage]           = useState(1);
     const [itemsPerPage, setItemsPerPage]         = useState(15);
     const [editOrder, setEditOrder]               = useState<ApiOrder | null>(null);
-    const [newStatus, setNewStatus]               = useState<ApiOrderStatus>("yangi");
+    const [newStatus, setNewStatus]               = useState<ApiOrderStatus>("new");
     const [saving, setSaving]                     = useState(false);
     const [confirmingPayment, setConfirmingPayment] = useState<number | null>(null);
 
@@ -95,7 +96,7 @@ export default function Orders() {
                 String(o.id).includes(search) ||
                 o.first_name?.toLowerCase().includes(search.toLowerCase()) ||
                 o.last_name?.toLowerCase().includes(search.toLowerCase()) ||
-                o.contact?.includes(search);
+                o.phone_number?.includes(search);
             const matchStatus = !filterStatus || o.status === filterStatus;
             const matchPayment = !filterPayment || o.payment === filterPayment;
 
@@ -403,10 +404,10 @@ export default function Orders() {
                                 </thead>
                                 <tbody>
                                 {paginatedOrders.map((order, i) => {
-                                    const totalItems = order.order_items?.reduce((sum, item) => sum + item.count, 0) || 0;
-                                    const totalPrice = order.order_items?.reduce((sum, item) => {
+                                    const totalItems = order.items?.reduce((sum, item) => sum + item.count, 0) || 0;
+                                    const totalPrice = order.total_price || order.items?.reduce((sum, item) => {
                                         const product = products.find(p => p.id === item.product_id);
-                                        return sum + (product?.price || 0) * item.count;
+                                        return sum + (item.price || product?.price || 0) * item.count;
                                     }, 0) || 0;
 
                                     return (
@@ -423,22 +424,22 @@ export default function Orders() {
                                             <td className="px-4 py-3">
                                                 <div>
                                                     <p className="font-medium">{order.first_name} {order.last_name}</p>
-                                                    <p className="text-xs text-muted-foreground">{order.town_city}, {order.country}</p>
+                                                    <p className="text-xs text-muted-foreground">{order.address}</p>
                                                 </div>
                                             </td>
                                             <td className="px-4 py-3 text-muted-foreground hidden md:table-cell">
                                                 <div className="max-w-[200px]">
-                                                    <p className="text-xs truncate" title={order.address}>{order.address}</p>
+                                                    <p className="text-xs truncate" title={order.phone_number}>{order.phone_number}</p>
                                                 </div>
                                             </td>
                                             <td className="px-4 py-3 text-muted-foreground hidden md:table-cell">
-                                                {order.contact}
+                                                {order.payment}
                                             </td>
                                             <td className="px-4 py-3 hidden lg:table-cell">
                                                 <div className="text-xs">
-                                                    {order.order_items && order.order_items.length > 0 ? (
+                                                    {order.items && order.items.length > 0 ? (
                                                         <div className="space-y-1">
-                                                            {order.order_items.slice(0, 2).map((item, idx) => {
+                                                            {order.items.slice(0, 2).map((item, idx) => {
                                                                 const product = products.find(p => p.id === item.product_id);
                                                                 return (
                                                                     <div key={idx} className="text-muted-foreground">
@@ -446,8 +447,8 @@ export default function Orders() {
                                                                     </div>
                                                                 );
                                                             })}
-                                                            {order.order_items.length > 2 && (
-                                                                <div className="text-primary">+{order.order_items.length - 2} ta</div>
+                                                            {order.items.length > 2 && (
+                                                                <div className="text-primary">+{order.items.length - 2} ta</div>
                                                             )}
                                                         </div>
                                                     ) : (
@@ -607,7 +608,7 @@ export default function Orders() {
                             </div>
                             <div className="flex justify-between">
                                 <span className="text-muted-foreground">Kontakt</span>
-                                <span>{editOrder.contact}</span>
+                                <span>{editOrder.phone_number}</span>
                             </div>
                             <div className="flex justify-between">
                                 <span className="text-muted-foreground">Manzil</span>
@@ -625,13 +626,13 @@ export default function Orders() {
                                     </span>
                                 </div>
                             )}
-                            {editOrder.order_items && editOrder.order_items.length > 0 && (
+                            {editOrder.items && editOrder.items.length > 0 && (
                                 <div className="pt-2 border-t border-border/30">
                                     <p className="text-muted-foreground mb-2">Buyurtma tovarlari:</p>
                                     <div className="space-y-1.5">
-                                        {editOrder.order_items.map((item, idx) => {
+                                        {editOrder.items.map((item, idx) => {
                                             const product = products.find(p => p.id === item.product_id);
-                                            const itemTotal = (product?.price || 0) * item.count;
+                                            const itemTotal = (item.price || product?.price || 0) * item.count;
                                             return (
                                                 <div key={idx} className="flex justify-between text-xs">
                                                     <span>{product?.name_uz || `ID: ${item.product_id}`} x{item.count}</span>
@@ -642,9 +643,9 @@ export default function Orders() {
                                         <div className="flex justify-between pt-1.5 border-t border-border/30 font-semibold">
                                             <span>Jami:</span>
                                             <span className="text-primary">
-                                                {editOrder.order_items.reduce((sum, item) => {
+                                                {editOrder.total_price?.toLocaleString() || editOrder.items.reduce((sum, item) => {
                                                     const product = products.find(p => p.id === item.product_id);
-                                                    return sum + (product?.price || 0) * item.count;
+                                                    return sum + (item.price || product?.price || 0) * item.count;
                                                 }, 0).toLocaleString()} so'm
                                             </span>
                                         </div>

@@ -21,6 +21,9 @@ export interface ApiCollection {
 
 export interface ApiColor {
     id: number;
+    name_uz: string;
+    name_ru: string;
+    name_eng: string;
     color_code: string;
     [key: string]: unknown;
 }
@@ -84,45 +87,45 @@ export const collectionsApi = {
 // ─── Colors ───────────────────────────────────────────────────────────────────
 export const colorsApi = {
     getAll: () =>
-        apiFetch<ApiColor[]>("/color"),
+        apiFetch<ApiColor[]>("/colors"),
 
     getById: (id: number) =>
-        apiFetch<ApiColor>(`/color/${id}`),
+        apiFetch<ApiColor>(`/colors/${id}`),
 
-    create: (data: { color_code: string }) => {
+    create: (data: { name_uz: string; name_ru: string; name_eng: string; color_code: string }) => {
         const fd = toFormData(data as Record<string, unknown>);
-        return apiFetch<{ ok: boolean; data: ApiColor }>("/color", { method: "POST", body: fd });
+        return apiFetch<{ ok: boolean; data: ApiColor }>("/colors", { method: "POST", body: fd });
     },
 
-    update: (id: number, data: { color_code: string }) => {
+    update: (id: number, data: Partial<{ name_uz: string; name_ru: string; name_eng: string; color_code: string }>) => {
         const fd = toFormData(data as Record<string, unknown>);
-        return apiFetch<{ ok: boolean; data: ApiColor }>(`/color/${id}`, { method: "PATCH", body: fd });
+        return apiFetch<{ ok: boolean; data: ApiColor }>(`/colors/${id}`, { method: "PATCH", body: fd });
     },
 
     delete: (id: number) =>
-        apiFetch<{ ok: boolean }>(`/color/${id}`, { method: "DELETE" }),
+        apiFetch<{ ok: boolean }>(`/colors/${id}`, { method: "DELETE" }),
 };
 
 // ─── Sizes ────────────────────────────────────────────────────────────────────
 export const sizesApi = {
     getAll: () =>
-        apiFetch<ApiSize[]>("/size"),
+        apiFetch<ApiSize[]>("/sizes"),
 
     getById: (id: number) =>
-        apiFetch<ApiSize>(`/size/${id}`),
+        apiFetch<ApiSize>(`/sizes/${id}`),
 
     create: (data: { name: string }) => {
         const fd = toFormData(data as Record<string, unknown>);
-        return apiFetch<{ ok: boolean; data: ApiSize }>("/size", { method: "POST", body: fd });
+        return apiFetch<{ ok: boolean; data: ApiSize }>("/sizes", { method: "POST", body: fd });
     },
 
     update: (id: number, data: { name: string }) => {
         const fd = toFormData(data as Record<string, unknown>);
-        return apiFetch<{ ok: boolean; data: ApiSize }>(`/size/${id}`, { method: "PATCH", body: fd });
+        return apiFetch<{ ok: boolean; data: ApiSize }>(`/sizes/${id}`, { method: "PATCH", body: fd });
     },
 
     delete: (id: number) =>
-        apiFetch<{ ok: boolean }>(`/size/${id}`, { method: "DELETE" }),
+        apiFetch<{ ok: boolean }>(`/sizes/${id}`, { method: "DELETE" }),
 };
 
 // ─── Banners ──────────────────────────────────────────────────────────────────

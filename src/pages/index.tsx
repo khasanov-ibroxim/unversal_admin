@@ -19,13 +19,14 @@ import type { ClothingType } from "@/api/products";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const statusColors: Record<string, string> = {
-    "yangi":          "bg-blue-500/15 text-blue-400 border-blue-500/20",
-    "to'landi":       "bg-success/15 text-success border-success/20",
-    "jarayonda":      "bg-primary/15 text-primary border-primary/20",
-    "tayyor":         "bg-accent/15 text-accent border-accent/20",
-    "yetkazilmoqda":  "bg-warning/15 text-warning border-warning/20",
-    "yetkazildi":     "bg-success/15 text-success border-success/20",
-    "bekor qilindi":  "bg-destructive/15 text-destructive border-destructive/20",
+    "new":          "bg-blue-500/15 text-blue-400 border-blue-500/20",
+    "paid":         "bg-success/15 text-success border-success/20",
+    "is_process":   "bg-primary/15 text-primary border-primary/20",
+    "ready":        "bg-accent/15 text-accent border-accent/20",
+    "in_progress":  "bg-warning/15 text-warning border-warning/20",
+    "delivered":    "bg-success/15 text-success border-success/20",
+    "cancelled":    "bg-destructive/15 text-destructive border-destructive/20",
+    "vozvrat":      "bg-orange-500/15 text-orange-400 border-orange-500/20",
 };
 
 const PIE_COLORS = ["hsl(199,89%,48%)", "hsl(280,60%,55%)", "hsl(45,93%,47%)"];
@@ -640,7 +641,6 @@ export default function Index() {
                                 <tbody>
                                 {recentOrders.map(order => {
                                     const orderProductNames = getOrderProductNames(order);
-                                    const city = (order as Record<string, unknown>).town_city as string | undefined;
                                     const total = getOrderTotal(order);
                                     return (
                                         <tr
@@ -652,12 +652,12 @@ export default function Index() {
                                             </td>
                                             <td className="py-3 whitespace-nowrap">
                                                 <p className="font-medium">{order.first_name} {order.last_name}</p>
-                                                <p className="text-xs text-muted-foreground">{order.contact}</p>
+                                                <p className="text-xs text-muted-foreground">{order.phone_number}</p>
                                             </td>
                                             <td className="py-3 hidden md:table-cell">
-                                                {city ? (
+                                                {order.address ? (
                                                     <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                                                            <MapPin className="h-3 w-3 shrink-0" />{city}
+                                                            <MapPin className="h-3 w-3 shrink-0" />{order.address}
                                                         </span>
                                                 ) : (
                                                     <span className="text-xs text-muted-foreground/40">—</span>

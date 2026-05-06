@@ -78,6 +78,12 @@ export interface DashboardStats {
 
 // ─── Panel API ────────────────────────────────────────────────────────────────
 export const panelApi = {
+    getMe: () =>
+        apiFetch<AdminUser>("/panel/me"),
+
+    getOperators: () =>
+        apiFetch<AdminUser[]>("/panel/operators"),
+
     createOperator: (data: {
         username: string;
         operator_code: string;
@@ -90,12 +96,14 @@ export const panelApi = {
             body: fd,
         });
     },
-    getUsers: () => apiFetch<AdminUser[]>("/panel/users"),
-    getMe:    () => apiFetch<AdminUser>("/panel/me"),
-    updateUser: (userId: number, data: { username?: string; operator_code?: string; is_active?: boolean }) => {
+
+    updateOperator: (userId: number, data: { username?: string; operator_code?: string; is_active?: boolean }) => {
         const fd = toFormData(data as Record<string, unknown>);
-        return apiFetch<{ ok: boolean }>(`/panel/users/${userId}`, { method: "PATCH", body: fd });
+        return apiFetch<{ ok: boolean }>(`/panel/operators/${userId}`, { method: "PATCH", body: fd });
     },
+
+    deleteOperator: (userId: number) =>
+        apiFetch<{ ok: boolean }>(`/panel/operators/${userId}`, { method: "DELETE" }),
 };
 
 // ─── History API ──────────────────────────────────────────────────────────────

@@ -49,7 +49,7 @@ interface StoreContextType {
 
     refreshColors: () => Promise<void>;
     refreshSizes: () => Promise<void>;
-    addColor: (data: { color_code: string }) => Promise<void>;
+    addColor: (data: { name_uz: string; name_ru: string; name_eng: string; color_code: string }) => Promise<void>;
     deleteColor: (id: number) => Promise<void>;
     addSize: (data: { name: string }) => Promise<void>;
     deleteSize: (id: number) => Promise<void>;
@@ -134,8 +134,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         setOrdersLoading(true);
         setOrdersError(null);
         try {
-            const res = await ordersApi.getAll();
-            setOrders(Array.isArray(res.data) ? res.data : []);
+            const data = await ordersApi.getAll();
+            setOrders(Array.isArray(data) ? data : []);
         } catch (e: unknown) {
             setOrdersError(e instanceof Error ? e.message : "Buyurtmalar yuklanmadi");
         } finally {
@@ -205,18 +205,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }, []);
 
     const updateOrderStatus = useCallback(async (orderId: number, status: ApiOrderStatus) => {
-        const res = await ordersApi.updateStatus(orderId, status);
-        if (res.data) {
-            setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, status: res.data.status as ApiOrderStatus } : o)));
-        }
+        await ordersApi.updateStatus(orderId, status);
+        setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, status } : o)));
     }, []);
 
     const confirmOrderPayment = useCallback(async (orderId: number) => {
-        await ordersApi.confirmPayment(orderId);
+        // confirmPayment endpoint removed in new API, use updateStatus instead
+        await ordersApi.updateStatus(orderId, "paid");
         await refreshOrders();
     }, [refreshOrders]);
 
-    const addColor = useCallback(async (data: { color_code: string }) => {
+    const addColor = useCallback(async (data: { name_uz: string; name_ru: string; name_eng: string; color_code: string }) => {
         await colorsApi.create(data);
         await refreshColors();
     }, [refreshColors]);

@@ -22,7 +22,9 @@ export async function apiFetch<T = unknown>(
 ): Promise<T> {
     const { params, ...fetchOptions } = options;
 
-    let url = `${BASE_URL}${path}`;
+    // Ensure path starts with /api
+    const apiPath = path.startsWith('/api') ? path : `/api${path}`;
+    let url = `${BASE_URL}${apiPath}`;
     if (params) {
         const query = Object.entries(params)
             .filter(([, v]) => v !== undefined && v !== null && v !== "")

@@ -140,7 +140,7 @@ export const excelApi = {
         }
         const headers: Record<string, string> = {};
         if (authHeader) headers.Authorization = authHeader;
-        const resp = await fetch(`${BASE_URL}/excel/products/template`, { headers });
+        const resp = await fetch(`${BASE_URL}/api/excel/products/template`, { headers });
         if (!resp.ok) throw new Error("Template yuklab bo'lmadi");
         const blob = await resp.blob();
         const url  = URL.createObjectURL(blob);

@@ -253,6 +253,13 @@ export function ProductModal({ open, onClose, product }: ProductModalProps) {
             return;
         }
 
+        // Check if variants exist (mandatory)
+        const hasVariants = product ? productItems.length > 0 : pendingItems.length > 0;
+        if (!hasVariants) {
+            toastError(tr.variantRequired || "Kamida bitta variant qo'shing (rang, o'lcham, miqdor)");
+            return;
+        }
+
         setSaving(true);
         try {
             const data = {
@@ -376,7 +383,7 @@ export function ProductModal({ open, onClose, product }: ProductModalProps) {
                         {existingPhotos.length > 0 && (
                             <div className="grid grid-cols-4 gap-2 mb-2">
                                 {existingPhotos.map(photo => {
-                                    const photoPath = photo.photo || "";
+                                    const photoPath = photo.photo_url || photo.photo || "";
                                     const fullUrl = photoPath.startsWith("http") ? photoPath : `${BASE_URL}/${photoPath}`;
                                     return (
                                         <div key={photo.id} className="relative group">

@@ -40,6 +40,7 @@ export interface ApiProduct {
 export interface ApiProductPhoto {
     id: number;
     product_id: number;
+    photo: string;
     photo_url: string;
     [key: string]: unknown;
 }
@@ -137,41 +138,46 @@ export const productsApi = {
 
 // ─── Product Photos ───────────────────────────────────────────────────────────
 export const productPhotosApi = {
+    getAll: (productId: number) =>
+        apiFetch<ApiProductPhoto[]>(`/product-photos`, { params: { product_id: productId } }),
+
     create: (productId: number, photo: File) => {
         const fd = new FormData();
+        fd.append("product_id", productId.toString());
         fd.append("photo", photo);
-        return apiFetch<{ ok: boolean; data: { id: number; product_id: number; photo_url: string } }>(`/products/${productId}/photos`, { method: "POST", body: fd });
+        return apiFetch<{ ok: boolean; data: { id: number; product_id: number; photo_url: string } }>(`/product-photos`, { method: "POST", body: fd });
     },
 
-    delete: (productId: number, photoId: number) =>
-        apiFetch<{ ok: boolean }>(`/products/${productId}/photos/${photoId}`, { method: "DELETE" }),
+    delete: (photoId: number) =>
+        apiFetch<{ ok: boolean }>(`/product-photos/${photoId}`, { method: "DELETE" }),
 };
 
 // ─── Product Items ────────────────────────────────────────────────────────────
 export const productItemsApi = {
     getAll: (productId: number) =>
-        apiFetch<ApiProductItem[]>(`/products/${productId}/items`),
+        apiFetch<ApiProductItem[]>(`/product-items/product/${productId}`),
 
-    create: (productId: number, data: { color_id: number; size_id: number; total_count: number; min_stock_level?: number }) => {
+    create: (data: { product_id: number; color_id: number; size_id: number; total_count: number; min_stock_level?: number }) => {
         const fd = toFormData(data as Record<string, unknown>);
-        return apiFetch<{ ok: boolean; data: ApiProductItem }>(`/products/${productId}/items`, { method: "POST", body: fd });
+        return apiFetch<{ ok: boolean; data: ApiProductItem }>(`/product-items`, { method: "POST", body: fd });
     },
 
-    update: (productId: number, itemId: number, data: Partial<{ color_id: number; size_id: number; total_count: number; min_stock_level: number }>) => {
+    update: (itemId: number, data: Partial<{ product_id: number; color_id: number; size_id: number; total_count: number; min_stock_level: number }>) => {
         const fd = toFormData(data as Record<string, unknown>);
-        return apiFetch<{ ok: boolean }>(`/products/${productId}/items/${itemId}`, { method: "PATCH", body: fd });
+        return apiFetch<{ ok: boolean }>(`/product-items/${itemId}`, { method: "PATCH", body: fd });
     },
 
-    delete: (productId: number, itemId: number) =>
-        apiFetch<{ ok: boolean }>(`/products/${productId}/items/${itemId}`, { method: "DELETE" }),
+    delete: (itemId: number) =>
+        apiFetch<{ ok: boolean }>(`/product-items/${itemId}`, { method: "DELETE" }),
 };
 
 // ─── Product Details ──────────────────────────────────────────────────────────
-// Note: Product Details endpoints are not documented in the new API
-// Keeping for backward compatibility but may need removal
 export const productDetailsApi = {
-    getAll: (productId?: number) =>
-        apiFetch<ApiProductDetail[]>("/product-details", { params: productId ? { product_id: productId } : {} }),
+    getAll: () =>
+        apiFetch<ApiProductDetail[]>("/product-details"),
+
+    getByProduct: (productId: number) =>
+        apiFetch<ApiProductDetail[]>(`/product-details/product/${productId}`),
 
     getById: (id: number) =>
         apiFetch<ApiProductDetail>(`/product-details/${id}`),

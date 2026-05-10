@@ -49,7 +49,7 @@ interface StoreContextType {
 
     refreshColors: () => Promise<void>;
     refreshSizes: () => Promise<void>;
-    addColor: (data: { name_uz: string; name_ru: string; name_eng: string; color_code: string }) => Promise<void>;
+    addColor: (data: { color_code: string }) => Promise<void>;
     deleteColor: (id: number) => Promise<void>;
     addSize: (data: { name: string }) => Promise<void>;
     deleteSize: (id: number) => Promise<void>;
@@ -215,7 +215,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         await refreshOrders();
     }, [refreshOrders]);
 
-    const addColor = useCallback(async (data: { name_uz: string; name_ru: string; name_eng: string; color_code: string }) => {
+    const addColor = useCallback(async (data: { color_code: string }) => {
         await colorsApi.create(data);
         await refreshColors();
     }, [refreshColors]);

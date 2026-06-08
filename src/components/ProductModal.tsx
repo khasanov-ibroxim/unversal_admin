@@ -1,11 +1,28 @@
 import { useEffect, useRef, useState } from "react";
-import { X, Check, ImagePlus, Loader2, Plus, Trash2 } from "lucide-react";
+import { X, Check, ImagePlus, Loader2, Plus, Trash2, GripVertical } from "lucide-react";
 import { useStore } from "@/context/StoreContext";
 import { useAppToast } from "@/hooks/use-app-toast";
-import { BASE_URL, productItemsApi, productPhotosApi } from "@/api";
-import type { ApiProduct, ClothingType, ApiProductItem, ApiProductPhoto } from "@/api/products";
+import { BASE_URL, productItemsApi, productPhotosApi, productDetailsApi } from "@/api";
+import type { ApiProduct, ClothingType, ApiProductItem, ApiProductPhoto, ApiProductDetail } from "@/api/products";
 import { useLang } from "@/context/LangContext";
 import { t } from "@/i18n/translations";
+import {
+    DndContext,
+    closestCenter,
+    KeyboardSensor,
+    PointerSensor,
+    useSensor,
+    useSensors,
+    DragEndEvent,
+} from '@dnd-kit/core';
+import {
+    arrayMove,
+    SortableContext,
+    sortableKeyboardCoordinates,
+    useSortable,
+    verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface ProductFormData {
@@ -27,6 +44,67 @@ interface ProductItemForm {
     color_id: number | "";
     size_id: number | "";
     total_count: number | "";
+}
+
+interface ProductDetailForm {
+    name_uz: string;
+    name_ru: string;
+    name_eng: string;
+}
+
+// Sortable photo item component
+function SortablePhotoItem({
+    id,
+    photo,
+    onRemove
+}: {
+    id: string;
+    photo: { url: string; isExisting: boolean; photoId?: number };
+    onRemove: () => void
+}) {
+    const {
+        attributes,
+        listeners,
+        setNodeRef,
+        transform,
+        transition,
+        isDragging,
+    } = useSortable({ id });
+
+    const style = {
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.5 : 1,
+    };
+
+    return (
+        <div
+            ref={setNodeRef}
+            style={style}
+            className="relative group"
+        >
+            <img
+                src={photo.url}
+                alt="product"
+                className="w-full h-24 object-cover rounded-lg"
+            />
+            <button
+                type="button"
+                {...attributes}
+                {...listeners}
+                className="absolute top-1 left-1 bg-gray-700/80 rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing"
+            >
+                <GripVertical className="h-3 w-3 text-white" />
+            </button>
+            <button
+                type="button"
+                onClick={onRemove}
+                className="absolute top-1 right-1 bg-red-500/80 rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+            >
+                <X className="h-3 w-3 text-white" />
+            </button>
+        </div>
+    );
 }
 
 const EMPTY_FORM: ProductFormData = {
@@ -61,6 +139,7 @@ export function ProductModal({ open, onClose, product }: ProductModalProps) {
     const [saving, setSaving] = useState(false);
     const [photoPreviews, setPhotoPreviews] = useState<string[]>([]);
     const [existingPhotos, setExistingPhotos] = useState<ApiProductPhoto[]>([]);
+    const [allPhotos, setAllPhotos] = useState<Array<{ id: string; url: string; isExisting: boolean; photoId?: number; file?: File }>>([]);
     const fileRef = useRef<HTMLInputElement>(null);
 
     const [productItems, setProductItems] = useState<ApiProductItem[]>([]);
@@ -71,11 +150,38 @@ export function ProductModal({ open, onClose, product }: ProductModalProps) {
     const [showColorDropdown, setShowColorDropdown] = useState(false);
     const [editingItem, setEditingItem] = useState<{ id: number; color_id: number; size_id: number; total_count: number } | null>(null);
 
+    // Product Details states
+    const [productDetails, setProductDetails] = useState<ApiProductDetail[]>([]);
+    const [newDetail, setNewDetail] = useState<ProductDetailForm>({ name_uz: "", name_ru: "", name_eng: "" });
+    const [showDetailForm, setShowDetailForm] = useState(false);
+    const [loadingDetails, setLoadingDetails] = useState(false);
+    const [pendingDetails, setPendingDetails] = useState<ProductDetailForm[]>([]);
+    const [editingDetail, setEditingDetail] = useState<{ id: number; name_uz: string; name_ru: string; name_eng: string } | null>(null);
+
     const CLOTHING_OPTIONS: { value: ClothingType; label: string; emoji: string }[] = [
         { value: "erkak",  label: tr.male,  emoji: "👔" },
         { value: "ayol",   label: tr.female,   emoji: "👗" },
         { value: "unisex", label: tr.unisex, emoji: "🧥" },
     ];
+
+    const sensors = useSensors(
+        useSensor(PointerSensor),
+        useSensor(KeyboardSensor, {
+            coordinateGetter: sortableKeyboardCoordinates,
+        })
+    );
+
+    const handleDragEnd = (event: DragEndEvent) => {
+        const { active, over } = event;
+        if (!over || active.id === over.id) return;
+
+        setAllPhotos((items) => {
+            const oldIndex = items.findIndex((item) => item.id === active.id);
+            const newIndex = items.findIndex((item) => item.id === over.id);
+            return arrayMove(items, oldIndex, newIndex);
+        });
+    };
+
     // Populate form when editing
     useEffect(() => {
         if (!open) {
@@ -83,9 +189,13 @@ export function ProductModal({ open, onClose, product }: ProductModalProps) {
             setForm(EMPTY_FORM);
             setPhotoPreviews([]);
             setExistingPhotos([]);
+            setAllPhotos([]);
             setProductItems([]);
             setPendingItems([]);
+            setProductDetails([]);
+            setPendingDetails([]);
             setShowItemForm(false);
+            setShowDetailForm(false);
             return;
         }
 
@@ -107,22 +217,42 @@ export function ProductModal({ open, onClose, product }: ProductModalProps) {
             setPhotoPreviews([]); // Yangi preview'larni tozalash
             loadProductPhotos(product.id);
             loadProductItems(product.id);
+            loadProductDetails(product.id);
             setPendingItems([]);
+            setPendingDetails([]);
         } else {
             setForm(EMPTY_FORM);
             setPhotoPreviews([]);
             setExistingPhotos([]);
+            setAllPhotos([]);
             setProductItems([]);
             setPendingItems([]);
+            setProductDetails([]);
+            setPendingDetails([]);
         }
     }, [open, product]);
 
     const loadProductPhotos = async (productId: number) => {
         try {
             const photos = await productPhotosApi.getAll(productId);
-            setExistingPhotos(Array.isArray(photos) ? photos : []);
+            const photosList = Array.isArray(photos) ? photos : [];
+            setExistingPhotos(photosList);
+
+            // Convert to allPhotos format
+            const converted = photosList.map((photo, index) => {
+                const photoPath = photo.photo_url || photo.photo || "";
+                const fullUrl = photoPath.startsWith("http") ? photoPath : `${BASE_URL}/${photoPath}`;
+                return {
+                    id: `existing-${photo.id}-${index}`,
+                    url: fullUrl,
+                    isExisting: true,
+                    photoId: photo.id,
+                };
+            });
+            setAllPhotos(converted);
         } catch {
             setExistingPhotos([]);
+            setAllPhotos([]);
         }
     };
 
@@ -139,6 +269,18 @@ export function ProductModal({ open, onClose, product }: ProductModalProps) {
         }
     };
 
+    const loadProductDetails = async (productId: number) => {
+        setLoadingDetails(true);
+        try {
+            const details = await productDetailsApi.getByProduct(productId);
+            setProductDetails(Array.isArray(details) ? details : []);
+        } catch {
+            setProductDetails([]);
+        } finally {
+            setLoadingDetails(false);
+        }
+    };
+
     const set = <K extends keyof ProductFormData>(k: K, v: ProductFormData[K]) =>
         setForm(f => ({ ...f, [k]: v }));
 
@@ -146,31 +288,37 @@ export function ProductModal({ open, onClose, product }: ProductModalProps) {
         if (!files || files.length === 0) return;
         const newFiles = Array.from(files);
 
-        // Yangi rasmlarni qo'shish
-        set("photos", [...(form.photos || []), ...newFiles]);
-
-        // Preview yaratish
-        newFiles.forEach(file => {
+        // Add new photos to allPhotos array
+        newFiles.forEach((file, index) => {
             const reader = new FileReader();
-            reader.onload = e => setPhotoPreviews(prev => [...prev, e.target?.result as string]);
+            reader.onload = e => {
+                const url = e.target?.result as string;
+                setAllPhotos(prev => [...prev, {
+                    id: `new-${Date.now()}-${index}`,
+                    url,
+                    isExisting: false,
+                    file,
+                }]);
+            };
             reader.readAsDataURL(file);
         });
     };
 
-    const handleRemoveNewPhoto = (index: number) => {
-        setPhotoPreviews(prev => prev.filter((_, i) => i !== index));
-        const updatedPhotos = form.photos?.filter((_, i) => i !== index) || [];
-        set("photos", updatedPhotos);
-    };
+    const handleRemovePhoto = async (id: string) => {
+        const photo = allPhotos.find(p => p.id === id);
+        if (!photo) return;
 
-    const handleRemoveExistingPhoto = async (photoId: number) => {
-        try {
-            await productPhotosApi.delete(photoId);
-            setExistingPhotos(prev => prev.filter(p => p.id !== photoId));
-            success(tr.photoDeleted);
-        } catch (e: unknown) {
-            toastError(e instanceof Error ? e.message : tr.errorOccurred);
+        if (photo.isExisting && photo.photoId) {
+            try {
+                await productPhotosApi.delete(photo.photoId);
+                success(tr.photoDeleted);
+            } catch (e: unknown) {
+                toastError(e instanceof Error ? e.message : tr.errorOccurred);
+                return;
+            }
         }
+
+        setAllPhotos(prev => prev.filter(p => p.id !== id));
     };
 
     const handleAddItem = async () => {
@@ -242,6 +390,76 @@ export function ProductModal({ open, onClose, product }: ProductModalProps) {
         setPendingItems(prev => prev.filter((_, i) => i !== index));
     };
 
+    // Product Details handlers
+    const handleAddDetail = async () => {
+        if (!newDetail.name_uz || !newDetail.name_ru || !newDetail.name_eng) {
+            toastError(tr.fillAllFields);
+            return;
+        }
+
+        if (product?.id) {
+            try {
+                await productDetailsApi.create({
+                    product_id: product.id,
+                    name_uz: newDetail.name_uz,
+                    name_ru: newDetail.name_ru,
+                    name_eng: newDetail.name_eng,
+                });
+                success(tr.detailAdded || "Detail qo'shildi");
+                setNewDetail({ name_uz: "", name_ru: "", name_eng: "" });
+                setShowDetailForm(false);
+                await loadProductDetails(product.id);
+            } catch (e: unknown) {
+                toastError(e instanceof Error ? e.message : tr.errorOccurred);
+            }
+        } else {
+            setPendingDetails(prev => [...prev, { ...newDetail }]);
+            setNewDetail({ name_uz: "", name_ru: "", name_eng: "" });
+            setShowDetailForm(false);
+        }
+    };
+
+    const handleDeleteDetail = async (detailId: number) => {
+        try {
+            await productDetailsApi.delete(detailId);
+            success(tr.detailDeleted || "Detail o'chirildi");
+            setProductDetails(prev => prev.filter(d => d.id !== detailId));
+        } catch (e: unknown) {
+            toastError(e instanceof Error ? e.message : tr.errorOccurred);
+        }
+    };
+
+    const handleEditDetail = (detail: ApiProductDetail) => {
+        setEditingDetail({
+            id: detail.id,
+            name_uz: detail.name_uz,
+            name_ru: detail.name_ru,
+            name_eng: detail.name_eng,
+        });
+    };
+
+    const handleUpdateDetail = async () => {
+        if (!editingDetail) return;
+        try {
+            await productDetailsApi.update(editingDetail.id, {
+                name_uz: editingDetail.name_uz,
+                name_ru: editingDetail.name_ru,
+                name_eng: editingDetail.name_eng,
+            });
+            success(tr.detailUpdated || "Detail yangilandi");
+            setEditingDetail(null);
+            if (product?.id) {
+                await loadProductDetails(product.id);
+            }
+        } catch (e: unknown) {
+            toastError(e instanceof Error ? e.message : tr.errorOccurred);
+        }
+    };
+
+    const handleDeletePendingDetail = (index: number) => {
+        setPendingDetails(prev => prev.filter((_, i) => i !== index));
+    };
+
     const handleSubmit = async () => {
         if (
             !form.category_id || !form.collection_id ||
@@ -262,6 +480,9 @@ export function ProductModal({ open, onClose, product }: ProductModalProps) {
 
         setSaving(true);
         try {
+            const newPhotos = allPhotos.filter(p => !p.isExisting && p.file);
+            const firstPhoto = newPhotos[0]?.file;
+
             const data = {
                 category_id:     Number(form.category_id),
                 collection_id:   Number(form.collection_id),
@@ -274,23 +495,23 @@ export function ProductModal({ open, onClose, product }: ProductModalProps) {
                 price:           Number(form.price),
                 is_active:       form.is_active,
                 clothing_type:   form.clothing_type,
-                photo:           form.photos?.[0],
+                photo:           firstPhoto,
             };
 
             if (product) {
-                console.log("EDIT MODE: form.photos length =", form.photos?.length);
+                console.log("EDIT MODE: newPhotos length =", newPhotos.length);
 
                 // Mahsulotni yangilashda rasm yubormaslik (faqat alohida qo'shish)
                 const { photo, ...updateData } = data;
                 await updateProduct(product.id as number, updateData);
 
-                // Faqat yangi tanlangan rasmlarni yuborish
-                if (form.photos && form.photos.length > 0) {
-                    console.log("EDIT MODE: Yuborilayotgan rasmlar soni =", form.photos.length);
-                    for (let i = 0; i < form.photos.length; i++) {
+                // Faqat yangi tanlangan rasmlarni yuborish (tartib bo'yicha)
+                if (newPhotos.length > 0) {
+                    console.log("EDIT MODE: Yuborilayotgan rasmlar soni =", newPhotos.length);
+                    for (let i = 0; i < newPhotos.length; i++) {
                         console.log(`EDIT MODE: Rasm ${i + 1} yuborilmoqda`);
                         try {
-                            await productPhotosApi.create(product.id, form.photos[i]);
+                            await productPhotosApi.create(product.id, newPhotos[i].file!);
                         } catch (e: unknown) {
                             console.error("Rasm qo'shishda xatolik:", e);
                         }
@@ -299,19 +520,19 @@ export function ProductModal({ open, onClose, product }: ProductModalProps) {
 
                 success(tr.productUpdated);
             } else {
-                console.log("CREATE MODE: form.photos length =", form.photos?.length);
+                console.log("CREATE MODE: newPhotos length =", newPhotos.length);
                 const result = await addProduct(data);
                 console.log("CREATE MODE: Birinchi rasm data.photo orqali yuborildi");
                 success(tr.productAdded);
 
                 if (result?.id) {
                     // Qo'shimcha rasmlarni yuborish (birinchi rasm allaqachon data.photo da yuborilgan)
-                    if (form.photos && form.photos.length > 1) {
-                        console.log("CREATE MODE: Qo'shimcha rasmlar soni =", form.photos.length - 1);
-                        for (let i = 1; i < form.photos.length; i++) {
+                    if (newPhotos.length > 1) {
+                        console.log("CREATE MODE: Qo'shimcha rasmlar soni =", newPhotos.length - 1);
+                        for (let i = 1; i < newPhotos.length; i++) {
                             console.log(`CREATE MODE: Qo'shimcha rasm ${i} yuborilmoqda`);
                             try {
-                                await productPhotosApi.create(result.id, form.photos[i]);
+                                await productPhotosApi.create(result.id, newPhotos[i].file!);
                             } catch (e: unknown) {
                                 console.error("Rasm qo'shishda xatolik:", e);
                             }
@@ -339,6 +560,7 @@ export function ProductModal({ open, onClose, product }: ProductModalProps) {
             setForm(EMPTY_FORM);
             setPhotoPreviews([]);
             setExistingPhotos([]);
+            setAllPhotos([]);
             setProductItems([]);
             setPendingItems([]);
 
@@ -379,50 +601,29 @@ export function ProductModal({ open, onClose, product }: ProductModalProps) {
                     <div>
                         <label className="text-xs text-muted-foreground mb-2 block">{tr.photos}</label>
 
-                        {/* Existing photos */}
-                        {existingPhotos.length > 0 && (
-                            <div className="grid grid-cols-4 gap-2 mb-2">
-                                {existingPhotos.map(photo => {
-                                    const photoPath = photo.photo_url || photo.photo || "";
-                                    const fullUrl = photoPath.startsWith("http") ? photoPath : `${BASE_URL}/${photoPath}`;
-                                    return (
-                                        <div key={photo.id} className="relative group">
-                                            <img
-                                                src={fullUrl}
-                                                alt="product"
-                                                className="w-full h-24 object-cover rounded-lg"
+                        {/* All photos with drag and drop */}
+                        {allPhotos.length > 0 && (
+                            <DndContext
+                                sensors={sensors}
+                                collisionDetection={closestCenter}
+                                onDragEnd={handleDragEnd}
+                            >
+                                <SortableContext
+                                    items={allPhotos.map(p => p.id)}
+                                    strategy={verticalListSortingStrategy}
+                                >
+                                    <div className="grid grid-cols-4 gap-2 mb-2">
+                                        {allPhotos.map(photo => (
+                                            <SortablePhotoItem
+                                                key={photo.id}
+                                                id={photo.id}
+                                                photo={photo}
+                                                onRemove={() => handleRemovePhoto(photo.id)}
                                             />
-                                            <button
-                                                onClick={() => handleRemoveExistingPhoto(photo.id)}
-                                                className="absolute top-1 right-1 bg-red-500/80 rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                                            >
-                                                <X className="h-3 w-3 text-white" />
-                                            </button>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        )}
-
-                        {/* New photo previews */}
-                        {photoPreviews.length > 0 && (
-                            <div className="grid grid-cols-4 gap-2 mb-2">
-                                {photoPreviews.map((preview, index) => (
-                                    <div key={index} className="relative group">
-                                        <img
-                                            src={preview}
-                                            alt="preview"
-                                            className="w-full h-24 object-cover rounded-lg"
-                                        />
-                                        <button
-                                            onClick={() => handleRemoveNewPhoto(index)}
-                                            className="absolute top-1 right-1 bg-red-500/80 rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                                        >
-                                            <X className="h-3 w-3 text-white" />
-                                        </button>
+                                        ))}
                                     </div>
-                                ))}
-                            </div>
+                                </SortableContext>
+                            </DndContext>
                         )}
 
                         {/* Upload area */}

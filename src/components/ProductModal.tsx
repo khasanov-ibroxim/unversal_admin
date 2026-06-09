@@ -182,9 +182,12 @@ export function ProductModal({ open, onClose, product }: ProductModalProps) {
             setExistingPhotos(photosList);
 
             // Convert to allPhotos format
+            const timestamp = new Date().getTime();
             const converted = photosList.map((photo, index) => {
                 const photoPath = photo.photo_url || photo.photo || "";
-                const fullUrl = photoPath.startsWith("http") ? photoPath : `${BASE_URL}/${photoPath}`;
+                let fullUrl = photoPath.startsWith("http") ? photoPath : `${BASE_URL}/${photoPath}`;
+                // Cache busting: har safar yangi versiyani yuklash uchun
+                fullUrl = `${fullUrl}?v=${timestamp}`;
                 return {
                     id: `existing-${photo.id}-${index}`,
                     url: fullUrl,

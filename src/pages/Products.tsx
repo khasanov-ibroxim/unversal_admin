@@ -16,7 +16,10 @@ function ProductImage({ product }: { product: ApiProduct }) {
         const photoUrl = product.product_photos[0].photo_url || product.product_photos[0].photo;
 
         if (photoUrl) {
-            const src = photoUrl.startsWith("http") ? photoUrl : `${BASE_URL}/${photoUrl}`;
+            let src = photoUrl.startsWith("http") ? photoUrl : `${BASE_URL}/${photoUrl}`;
+            // Cache busting: rasm yangilanganida yangi versiyasini ko'rsatish uchun timestamp qo'shamiz
+            const timestamp = new Date().getTime();
+            src = `${src}?v=${timestamp}`;
             return <img src={src} alt={product.name_eng} className="w-full h-full object-cover" />;
         }
     }

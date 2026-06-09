@@ -1,28 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { X, Check, ImagePlus, Loader2, Plus, Trash2, GripVertical } from "lucide-react";
+import { X, Check, ImagePlus, Loader2, Plus, Trash2 } from "lucide-react";
 import { useStore } from "@/context/StoreContext";
 import { useAppToast } from "@/hooks/use-app-toast";
 import { BASE_URL, productItemsApi, productPhotosApi, productDetailsApi } from "@/api";
 import type { ApiProduct, ClothingType, ApiProductItem, ApiProductPhoto, ApiProductDetail } from "@/api/products";
 import { useLang } from "@/context/LangContext";
 import { t } from "@/i18n/translations";
-import {
-    DndContext,
-    closestCenter,
-    KeyboardSensor,
-    PointerSensor,
-    useSensor,
-    useSensors,
-    DragEndEvent,
-} from '@dnd-kit/core';
-import {
-    arrayMove,
-    SortableContext,
-    sortableKeyboardCoordinates,
-    useSortable,
-    verticalListSortingStrategy,
-} from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface ProductFormData {
@@ -52,50 +35,28 @@ interface ProductDetailForm {
     name_eng: string;
 }
 
-// Sortable photo item component
-function SortablePhotoItem({
-    id,
+// Regular photo item component
+function PhotoItem({
     photo,
-    onRemove
+    onRemove,
+    isFirst
 }: {
-    id: string;
     photo: { url: string; isExisting: boolean; photoId?: number };
-    onRemove: () => void
+    onRemove: () => void;
+    isFirst?: boolean;
 }) {
-    const {
-        attributes,
-        listeners,
-        setNodeRef,
-        transform,
-        transition,
-        isDragging,
-    } = useSortable({ id });
-
-    const style = {
-        transform: CSS.Transform.toString(transform),
-        transition,
-        opacity: isDragging ? 0.5 : 1,
-    };
-
     return (
-        <div
-            ref={setNodeRef}
-            style={style}
-            className="relative group"
-        >
+        <div className="relative group">
             <img
                 src={photo.url}
                 alt="product"
                 className="w-full h-24 object-cover rounded-lg"
             />
-            <button
-                type="button"
-                {...attributes}
-                {...listeners}
-                className="absolute top-1 left-1 bg-gray-700/80 rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing"
-            >
-                <GripVertical className="h-3 w-3 text-white" />
-            </button>
+            {isFirst && (
+                <div className="absolute bottom-1 left-1 bg-primary/90 rounded px-1.5 py-0.5">
+                    <span className="text-[10px] font-semibold text-white">ASOSIY</span>
+                </div>
+            )}
             <button
                 type="button"
                 onClick={onRemove}
@@ -163,24 +124,6 @@ export function ProductModal({ open, onClose, product }: ProductModalProps) {
         { value: "ayol",   label: tr.female,   emoji: "👗" },
         { value: "unisex", label: tr.unisex, emoji: "🧥" },
     ];
-
-    const sensors = useSensors(
-        useSensor(PointerSensor),
-        useSensor(KeyboardSensor, {
-            coordinateGetter: sortableKeyboardCoordinates,
-        })
-    );
-
-    const handleDragEnd = (event: DragEndEvent) => {
-        const { active, over } = event;
-        if (!over || active.id === over.id) return;
-
-        setAllPhotos((items) => {
-            const oldIndex = items.findIndex((item) => item.id === active.id);
-            const newIndex = items.findIndex((item) => item.id === over.id);
-            return arrayMove(items, oldIndex, newIndex);
-        });
-    };
 
     // Populate form when editing
     useEffect(() => {
@@ -481,56 +424,62 @@ export function ProductModal({ open, onClose, product }: ProductModalProps) {
         setSaving(true);
         try {
             const newPhotos = allPhotos.filter(p => !p.isExisting && p.file);
-            const firstPhoto = newPhotos[0]?.file;
-
-            const data = {
-                category_id:     Number(form.category_id),
-                collection_id:   Number(form.collection_id),
-                name_uz:         form.name_uz,
-                name_ru:         form.name_ru,
-                name_eng:        form.name_eng,
-                description_uz:  form.description_uz,
-                description_ru:  form.description_ru,
-                description_eng: form.description_eng,
-                price:           Number(form.price),
-                is_active:       form.is_active,
-                clothing_type:   form.clothing_type,
-                photo:           firstPhoto,
-            };
 
             if (product) {
-                console.log("EDIT MODE: newPhotos length =", newPhotos.length);
+                // EDIT MODE: Mahsulotni yangilash
+                const updateData = {
+                    category_id:     Number(form.category_id),
+                    collection_id:   Number(form.collection_id),
+                    name_uz:         form.name_uz,
+                    name_ru:         form.name_ru,
+                    name_eng:        form.name_eng,
+                    description_uz:  form.description_uz,
+                    description_ru:  form.description_ru,
+                    description_eng: form.description_eng,
+                    price:           Number(form.price),
+                    is_active:       form.is_active,
+                    clothing_type:   form.clothing_type,
+                };
 
-                // Mahsulotni yangilashda rasm yubormaslik (faqat alohida qo'shish)
-                const { photo, ...updateData } = data;
                 await updateProduct(product.id as number, updateData);
 
-                // Faqat yangi tanlangan rasmlarni yuborish (tartib bo'yicha)
+                // Yangi rasmlarni qo'shish
                 if (newPhotos.length > 0) {
-                    console.log("EDIT MODE: Yuborilayotgan rasmlar soni =", newPhotos.length);
-                    for (let i = 0; i < newPhotos.length; i++) {
-                        console.log(`EDIT MODE: Rasm ${i + 1} yuborilmoqda`);
+                    for (const photo of newPhotos) {
                         try {
-                            await productPhotosApi.create(product.id, newPhotos[i].file!);
+                            await productPhotosApi.create(product.id, photo.file!);
                         } catch (e: unknown) {
                             console.error("Rasm qo'shishda xatolik:", e);
+                            toastError(e instanceof Error ? e.message : tr.errorOccurred);
                         }
                     }
                 }
 
                 success(tr.productUpdated);
             } else {
-                console.log("CREATE MODE: newPhotos length =", newPhotos.length);
+                // CREATE MODE: Yangi mahsulot yaratish
+                const firstPhoto = newPhotos[0]?.file;
+                const data = {
+                    category_id:     Number(form.category_id),
+                    collection_id:   Number(form.collection_id),
+                    name_uz:         form.name_uz,
+                    name_ru:         form.name_ru,
+                    name_eng:        form.name_eng,
+                    description_uz:  form.description_uz,
+                    description_ru:  form.description_ru,
+                    description_eng: form.description_eng,
+                    price:           Number(form.price),
+                    is_active:       form.is_active,
+                    clothing_type:   form.clothing_type,
+                    photo:           firstPhoto,
+                };
+
                 const result = await addProduct(data);
-                console.log("CREATE MODE: Birinchi rasm data.photo orqali yuborildi");
-                success(tr.productAdded);
 
                 if (result?.id) {
-                    // Qo'shimcha rasmlarni yuborish (birinchi rasm allaqachon data.photo da yuborilgan)
+                    // Qo'shimcha rasmlarni yuborish (birinchi rasm allaqachon yuborilgan)
                     if (newPhotos.length > 1) {
-                        console.log("CREATE MODE: Qo'shimcha rasmlar soni =", newPhotos.length - 1);
                         for (let i = 1; i < newPhotos.length; i++) {
-                            console.log(`CREATE MODE: Qo'shimcha rasm ${i} yuborilmoqda`);
                             try {
                                 await productPhotosApi.create(result.id, newPhotos[i].file!);
                             } catch (e: unknown) {
@@ -539,6 +488,7 @@ export function ProductModal({ open, onClose, product }: ProductModalProps) {
                         }
                     }
 
+                    // Pending variantlarni qo'shish
                     if (pendingItems.length > 0) {
                         for (const item of pendingItems) {
                             try {
@@ -554,6 +504,8 @@ export function ProductModal({ open, onClose, product }: ProductModalProps) {
                         }
                     }
                 }
+
+                success(tr.productAdded);
             }
 
             // State'larni tozalash
@@ -599,31 +551,25 @@ export function ProductModal({ open, onClose, product }: ProductModalProps) {
                 <div className="p-6 space-y-5 max-h-[calc(100vh-8rem)] overflow-y-auto overflow-x-visible">
                     {/* ── Photo upload ── */}
                     <div>
-                        <label className="text-xs text-muted-foreground mb-2 block">{tr.photos}</label>
+                        <div className="flex items-center justify-between mb-2">
+                            <label className="text-xs text-muted-foreground">{tr.photos}</label>
+                            <span className="text-[10px] text-muted-foreground">
+                                Birinchi rasm asosiy rasm sifatida ko'rsatiladi
+                            </span>
+                        </div>
 
-                        {/* All photos with drag and drop */}
+                        {/* All photos (simple grid) */}
                         {allPhotos.length > 0 && (
-                            <DndContext
-                                sensors={sensors}
-                                collisionDetection={closestCenter}
-                                onDragEnd={handleDragEnd}
-                            >
-                                <SortableContext
-                                    items={allPhotos.map(p => p.id)}
-                                    strategy={verticalListSortingStrategy}
-                                >
-                                    <div className="grid grid-cols-4 gap-2 mb-2">
-                                        {allPhotos.map(photo => (
-                                            <SortablePhotoItem
-                                                key={photo.id}
-                                                id={photo.id}
-                                                photo={photo}
-                                                onRemove={() => handleRemovePhoto(photo.id)}
-                                            />
-                                        ))}
-                                    </div>
-                                </SortableContext>
-                            </DndContext>
+                            <div className="grid grid-cols-4 gap-2 mb-2">
+                                {allPhotos.map((photo, index) => (
+                                    <PhotoItem
+                                        key={photo.id}
+                                        photo={photo}
+                                        onRemove={() => handleRemovePhoto(photo.id)}
+                                        isFirst={index === 0}
+                                    />
+                                ))}
+                            </div>
                         )}
 
                         {/* Upload area */}

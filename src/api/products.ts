@@ -23,9 +23,11 @@ export interface ApiProduct {
         name_ru: string;
         name_eng: string;
     };
-    photos?: {
+    product_photos?: {
         id: number;
-        photo_url: string;
+        product_id: number;
+        photo: string;
+        photo_url?: string;
     }[];
     items?: {
         id: number;

@@ -12,8 +12,8 @@ import type { ApiProduct } from "@/api";
 import { BASE_URL } from "@/api";
 
 function ProductImage({ product }: { product: ApiProduct }) {
-    if (product.product_photos){
-        const photoUrl = product.product_photos.photo;
+    if (product.product_photos && product.product_photos.length > 0){
+        const photoUrl = product.product_photos[0].photo_url || product.product_photos[0].photo;
 
         if (photoUrl) {
             const src = photoUrl.startsWith("http") ? photoUrl : `${BASE_URL}/${photoUrl}`;

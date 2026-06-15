@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { X, Check, ImagePlus, Loader2, Plus, Trash2 } from "lucide-react";
+import { X, Check, ImagePlus, Loader2, Plus, Trash2, GripVertical } from "lucide-react";
 import { useStore } from "@/context/StoreContext";
 import { useAppToast } from "@/hooks/use-app-toast";
 import { BASE_URL, productItemsApi, productPhotosApi, productDetailsApi } from "@/api";
@@ -118,6 +118,8 @@ export function ProductModal({ open, onClose, product }: ProductModalProps) {
     const [loadingDetails, setLoadingDetails] = useState(false);
     const [pendingDetails, setPendingDetails] = useState<ProductDetailForm[]>([]);
     const [editingDetail, setEditingDetail] = useState<{ id: number; name_uz: string; name_ru: string; name_eng: string } | null>(null);
+    const [draggedDetailIndex, setDraggedDetailIndex] = useState<number | null>(null);
+    const [draggedPendingDetailIndex, setDraggedPendingDetailIndex] = useState<number | null>(null);
 
     const CLOTHING_OPTIONS: { value: ClothingType; label: string; emoji: string }[] = [
         { value: "erkak",  label: tr.male,  emoji: "👔" },
@@ -406,6 +408,56 @@ export function ProductModal({ open, onClose, product }: ProductModalProps) {
         setPendingDetails(prev => prev.filter((_, i) => i !== index));
     };
 
+    // Drag and drop handlers for existing details
+    const handleDetailDragStart = (e: React.DragEvent, index: number) => {
+        setDraggedDetailIndex(index);
+        e.dataTransfer.effectAllowed = "move";
+    };
+
+    const handleDetailDragOver = (e: React.DragEvent, index: number) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "move";
+
+        if (draggedDetailIndex === null || draggedDetailIndex === index) return;
+
+        const newDetails = [...productDetails];
+        const draggedItem = newDetails[draggedDetailIndex];
+        newDetails.splice(draggedDetailIndex, 1);
+        newDetails.splice(index, 0, draggedItem);
+
+        setProductDetails(newDetails);
+        setDraggedDetailIndex(index);
+    };
+
+    const handleDetailDragEnd = () => {
+        setDraggedDetailIndex(null);
+    };
+
+    // Drag and drop handlers for pending details
+    const handlePendingDetailDragStart = (e: React.DragEvent, index: number) => {
+        setDraggedPendingDetailIndex(index);
+        e.dataTransfer.effectAllowed = "move";
+    };
+
+    const handlePendingDetailDragOver = (e: React.DragEvent, index: number) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "move";
+
+        if (draggedPendingDetailIndex === null || draggedPendingDetailIndex === index) return;
+
+        const newDetails = [...pendingDetails];
+        const draggedItem = newDetails[draggedPendingDetailIndex];
+        newDetails.splice(draggedPendingDetailIndex, 1);
+        newDetails.splice(index, 0, draggedItem);
+
+        setPendingDetails(newDetails);
+        setDraggedPendingDetailIndex(index);
+    };
+
+    const handlePendingDetailDragEnd = () => {
+        setDraggedPendingDetailIndex(null);
+    };
+
     const handleSubmit = async () => {
         if (
             !form.category_id || !form.collection_id ||
@@ -458,6 +510,31 @@ export function ProductModal({ open, onClose, product }: ProductModalProps) {
                     }
                 }
 
+                // Product details tartibini yangilash
+                // Backend array tartibini order sifatida qabul qiladi
+                if (productDetails.length > 0) {
+                    try {
+                        // 1. Avval BARCHA detaillarni o'chirish (to'liq tugashi kerak)
+                        const deletePromises = productDetails.map(detail =>
+                            productDetailsApi.delete(detail.id)
+                        );
+                        await Promise.all(deletePromises);
+
+                        // 2. Keyin yangi tartibda KETMA-KET qayta yaratish
+                        for (let i = 0; i < productDetails.length; i++) {
+                            const detail = productDetails[i];
+                            await productDetailsApi.create({
+                                product_id: product.id,
+                                name_uz: detail.name_uz,
+                                name_ru: detail.name_ru,
+                                name_eng: detail.name_eng,
+                            });
+                        }
+                    } catch (e: unknown) {
+                        console.error("Details tartibini saqlashda xatolik:", e);
+                    }
+                }
+
                 success(tr.productUpdated);
             } else {
                 // CREATE MODE: Yangi mahsulot yaratish
@@ -503,6 +580,22 @@ export function ProductModal({ open, onClose, product }: ProductModalProps) {
                                 });
                             } catch (e: unknown) {
                                 console.error("Variant qo'shishda xatolik:", e);
+                            }
+                        }
+                    }
+                    // Pending detail'larni tartib bo'yicha qo'shish
+                    if (pendingDetails.length > 0) {
+                        for (let i = 0; i < pendingDetails.length; i++) {
+                            const detail = pendingDetails[i];
+                            try {
+                                await productDetailsApi.create({
+                                    product_id: result.id,
+                                    name_uz: detail.name_uz,
+                                    name_ru: detail.name_ru,
+                                    name_eng: detail.name_eng,
+                                });
+                            } catch (e) {
+                                console.error("Detail qo'shishda xatolik:", e);
                             }
                         }
                     }
@@ -967,7 +1060,185 @@ export function ProductModal({ open, onClose, product }: ProductModalProps) {
                             )}
                         </div>
                     </div>
+                    {/* ── Product Details ── */}
+                    <div className="border-t border-border/30 pt-5 mt-2">
+                        <div className="flex items-center justify-between mb-3">
+                            <div>
+                                <h3 className="text-sm font-semibold">Details</h3>
+                                <p className="text-xs text-muted-foreground mt-0.5">Mahsulot xususiyatlari</p>
+                            </div>
+                            <button
+                                onClick={() => setShowDetailForm(!showDetailForm)}
+                                className="glass rounded-lg px-3 py-1.5 flex items-center gap-1.5 hover:bg-primary/20 transition-colors text-xs font-medium"
+                            >
+                                <Plus className="h-3.5 w-3.5" />
+                                {tr.add}
+                            </button>
+                        </div>
 
+                        {showDetailForm && (
+                            <div className="glass-subtle rounded-xl p-4 mb-3 space-y-3">
+                                <div className="grid grid-cols-3 gap-2">
+                                    <div>
+                                        <label className="text-[10px] text-muted-foreground/70 mb-1 block">UZ</label>
+                                        <input
+                                            value={newDetail.name_uz}
+                                            onChange={e => setNewDetail(prev => ({ ...prev, name_uz: e.target.value }))}
+                                            placeholder="O'zbekcha"
+                                            className="w-full glass rounded-lg px-2 py-1.5 text-xs outline-none focus:ring-2 focus:ring-primary/50"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] text-muted-foreground/70 mb-1 block">RU</label>
+                                        <input
+                                            value={newDetail.name_ru}
+                                            onChange={e => setNewDetail(prev => ({ ...prev, name_ru: e.target.value }))}
+                                            placeholder="Русский"
+                                            className="w-full glass rounded-lg px-2 py-1.5 text-xs outline-none focus:ring-2 focus:ring-primary/50"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] text-muted-foreground/70 mb-1 block">EN</label>
+                                        <input
+                                            value={newDetail.name_eng}
+                                            onChange={e => setNewDetail(prev => ({ ...prev, name_eng: e.target.value }))}
+                                            placeholder="English"
+                                            className="w-full glass rounded-lg px-2 py-1.5 text-xs outline-none focus:ring-2 focus:ring-primary/50"
+                                        />
+                                    </div>
+                                </div>
+                                <div className="flex gap-2 justify-end">
+                                    <button
+                                        onClick={() => {
+                                            setShowDetailForm(false);
+                                            setNewDetail({ name_uz: "", name_ru: "", name_eng: "" });
+                                        }}
+                                        className="glass rounded-lg px-3 py-1.5 text-xs hover:bg-muted/20"
+                                    >
+                                        <X className="h-3 w-3" />
+                                    </button>
+                                    <button
+                                        onClick={handleAddDetail}
+                                        className="rounded-lg px-3 py-1.5 text-xs font-semibold flex items-center gap-1"
+                                        style={{
+                                            background: "linear-gradient(135deg, hsl(199,89%,48%), hsl(280,60%,55%))",
+                                            color: "hsl(225,25%,8%)",
+                                        }}
+                                    >
+                                        <Check className="h-3 w-3" />
+                                        {tr.add}
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="space-y-2 max-h-48 overflow-y-auto">
+                            {product ? (
+                                loadingDetails ? (
+                                    <div className="text-center py-4 text-xs text-muted-foreground">{tr.loading}</div>
+                                ) : (
+                                    productDetails.map((detail, index) => {
+                                        const isEditing = editingDetail?.id === detail.id;
+                                        if (isEditing) {
+                                            return (
+                                                <div key={detail.id} className="glass-subtle rounded-lg p-3 space-y-2">
+                                                    <div className="grid grid-cols-3 gap-2">
+                                                        <input
+                                                            value={editingDetail.name_uz}
+                                                            onChange={e => setEditingDetail(prev => prev ? { ...prev, name_uz: e.target.value } : null)}
+                                                            placeholder="O'zbekcha"
+                                                            className="glass rounded-lg px-2 py-1.5 text-xs outline-none focus:ring-2 focus:ring-primary/50"
+                                                        />
+                                                        <input
+                                                            value={editingDetail.name_ru}
+                                                            onChange={e => setEditingDetail(prev => prev ? { ...prev, name_ru: e.target.value } : null)}
+                                                            placeholder="Русский"
+                                                            className="glass rounded-lg px-2 py-1.5 text-xs outline-none focus:ring-2 focus:ring-primary/50"
+                                                        />
+                                                        <input
+                                                            value={editingDetail.name_eng}
+                                                            onChange={e => setEditingDetail(prev => prev ? { ...prev, name_eng: e.target.value } : null)}
+                                                            placeholder="English"
+                                                            className="glass rounded-lg px-2 py-1.5 text-xs outline-none focus:ring-2 focus:ring-primary/50"
+                                                        />
+                                                    </div>
+                                                    <div className="flex gap-2 justify-end">
+                                                        <button
+                                                            onClick={() => setEditingDetail(null)}
+                                                            className="glass rounded-lg px-2 py-1 text-xs hover:bg-muted/20"
+                                                        >
+                                                            <X className="h-3 w-3" />
+                                                        </button>
+                                                        <button
+                                                            onClick={handleUpdateDetail}
+                                                            className="glass rounded-lg px-2 py-1 text-xs hover:bg-primary/20"
+                                                        >
+                                                            <Check className="h-3 w-3 text-primary" />
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            );
+                                        }
+                                        return (
+                                            <div
+                                                key={detail.id}
+                                                draggable={!isEditing}
+                                                onDragStart={(e) => handleDetailDragStart(e, index)}
+                                                onDragOver={(e) => handleDetailDragOver(e, index)}
+                                                onDragEnd={handleDetailDragEnd}
+                                                className={`flex items-center gap-2 glass-subtle rounded-lg px-3 py-2 group hover:bg-muted/10 cursor-move transition-all ${
+                                                    draggedDetailIndex === index ? 'opacity-50' : ''
+                                                }`}
+                                            >
+                                                <GripVertical className="h-4 w-4 text-muted-foreground/50 shrink-0" />
+                                                <span className="text-xs font-medium flex-1 truncate">
+                                                    {lang === "RU" ? detail.name_ru : detail.name_uz}
+                                                </span>
+                                                <span className="text-[10px] text-muted-foreground hidden sm:block">
+                                                    {lang === "RU" ? detail.name_uz : detail.name_ru}
+                                                </span>
+                                                <button
+                                                    onClick={() => handleEditDetail(detail)}
+                                                    className="opacity-0 group-hover:opacity-100 glass rounded-lg p-1 hover:bg-primary/20 transition-all"
+                                                >
+                                                    <Check className="h-3 w-3 text-primary" />
+                                                </button>
+                                                <button
+                                                    onClick={() => handleDeleteDetail(detail.id)}
+                                                    className="opacity-0 group-hover:opacity-100 glass rounded-lg p-1 hover:bg-red-500/20 transition-all"
+                                                >
+                                                    <Trash2 className="h-3 w-3 text-red-400" />
+                                                </button>
+                                            </div>
+                                        );
+                                    })
+                                )
+                            ) : (
+                                pendingDetails.map((detail, index) => (
+                                    <div
+                                        key={index}
+                                        draggable
+                                        onDragStart={(e) => handlePendingDetailDragStart(e, index)}
+                                        onDragOver={(e) => handlePendingDetailDragOver(e, index)}
+                                        onDragEnd={handlePendingDetailDragEnd}
+                                        className={`flex items-center gap-2 glass-subtle rounded-lg px-3 py-2 group hover:bg-muted/10 cursor-move transition-all ${
+                                            draggedPendingDetailIndex === index ? 'opacity-50' : ''
+                                        }`}
+                                    >
+                                        <GripVertical className="h-4 w-4 text-muted-foreground/50 shrink-0" />
+                                        <span className="text-xs font-medium flex-1 truncate">{detail.name_uz}</span>
+                                        <span className="text-[10px] text-muted-foreground hidden sm:block">{detail.name_ru}</span>
+                                        <button
+                                            onClick={() => handleDeletePendingDetail(index)}
+                                            className="opacity-0 group-hover:opacity-100 glass rounded-lg p-1 hover:bg-red-500/20 transition-all"
+                                        >
+                                            <Trash2 className="h-3 w-3 text-red-400" />
+                                        </button>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                    </div>
                     {/* ── Actions ── */}
                     <div className="flex gap-3 pt-1">
                         <button
